@@ -1,7 +1,9 @@
+/* eslint-disable no-restricted-imports */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import type { FC } from 'react'
 import React, { useState, useEffect } from 'react'
 import { useIntl } from 'react-intl'
+import { isEmpty } from 'ramda'
 import { useQuery, useMutation } from 'react-apollo'
 import {
   Layout,
@@ -13,6 +15,7 @@ import {
   Toggle,
   ToastProvider,
   ToastConsumer,
+  Alert,
 } from 'vtex.styleguide'
 import { useRuntime } from 'vtex.render-runtime'
 
@@ -26,12 +29,14 @@ const Admin: FC = () => {
   const { account } = useRuntime()
 
   const [settingsState, setSettingsState] = useState({
+    digitalRiverPublicKey: '',
     digitalRiverToken: '',
     vtexAppKey: '',
     vtexAppToken: '',
     isLive: false,
+    isValid: true,
     isAutomaticSync: false,
-    enableTaxCalculation: false,
+    isTaxInclusive: false,
   })
 
   const [settingsLoading, setSettingsLoading] = useState(false)
@@ -48,6 +53,13 @@ const Admin: FC = () => {
     ssr: false,
   })
 
+  const { appId } =
+    orderFormData?.orderFormConfiguration?.taxConfiguration ?? {}
+
+  const hasTaxConfiguration = !isEmpty(
+    orderFormData?.orderFormConfiguration?.taxConfiguration ?? {}
+  )
+
   const [saveSettings] = useMutation(SaveAppSettings)
   const [updateOrderFormConfiguration] = useMutation(
     UpdateOrderFormConfiguration
@@ -58,33 +70,9 @@ const Admin: FC = () => {
 
     const parsedSettings = JSON.parse(data.appSettings.message)
 
-    setSettingsState(parsedSettings)
-
-    // if (orderFormData) {
-    //   if (!orderFormData.orderFormConfiguration?.taxConfiguration) {
-    //     setSettingsState({
-    //       ...parsedSettings,
-    //       enableTaxCalculation: false,
-    //     })
-
-    //     return
-    //   }
-
-    //   if (
-    //     orderFormData.orderFormConfiguration?.taxConfiguration?.url !==
-    //     `http://master--${account}.myvtex.com/_v/api/digital-river/checkout/order-tax`
-    //   ) {
-    //     setTaxStatus(
-    //       formatMessage({
-    //         id: 'admin/digital-river.taxStatus.otherTaxConfiguration',
-    //       })
-    //     )
-    //     setSettingsState({
-    //       ...parsedSettings,
-    //       enableTaxCalculation: false,
-    //     })
-    //   }
-    // }
+    setSettingsState((prevState) => {
+      return { ...prevState, ...parsedSettings }
+    })
   }, [data, account, formatMessage])
 
   const handleSaveSettings = async (showToast: any) => {
@@ -119,12 +107,7 @@ const Admin: FC = () => {
         updateOrderForm = true
       }
 
-      // If enableTaxCalulation is true, set Digital River as tax provider
-      // but only if it's not already set as tax provider
-      if (
-        settingsState.enableTaxCalculation &&
-        !orderFormData.orderFormConfiguration.taxConfiguration
-      ) {
+      if (appId === 'vtexus.connector-digital-river' || !hasTaxConfiguration) {
         orderFormData.orderFormConfiguration.taxConfiguration = {
           url: `http://master--${account}.myvtex.com/_v/api/digital-river/checkout/order-tax`,
           authorizationHeader: settingsState.digitalRiverToken,
@@ -135,17 +118,6 @@ const Admin: FC = () => {
         updateOrderForm = true
       }
 
-      // If enableTaxCalulation is false and Digital River is currently set as the tax provider,
-      // remove Digital River as tax provider
-      if (
-        !settingsState.enableTaxCalculation &&
-        orderFormData?.orderFormConfiguration?.taxConfiguration?.appId ===
-          'vtexus.connector-digital-river'
-      ) {
-        orderFormData.orderFormConfiguration.taxConfiguration = {}
-        updateOrderForm = true
-      }
-
       if (updateOrderForm) {
         await updateOrderFormConfiguration({
           variables: {
@@ -153,11 +125,6 @@ const Admin: FC = () => {
           },
         }).catch((err) => {
           console.error(err)
-
-          setSettingsState({
-            ...settingsState,
-            enableTaxCalculation: !settingsState.enableTaxCalculation,
-          })
         })
       }
     }
@@ -208,6 +175,37 @@ const Admin: FC = () => {
             }
           >
             <PageBlock>
+              {appId !== 'vtexus.connector-digital-river' &&
+                hasTaxConfiguration && (
+                  <section className="pb4">
+                    <Alert type="error">
+                      {formatMessage({
+                        id: 'admin/digital-river.settings.alert.errorText',
+                      })}
+                    </Alert>
+                  </section>
+                )}
+
+              <section className="pb4">
+                <InputPassword
+                  label={formatMessage({
+                    id:
+                      'admin/digital-river.settings.digitalRiverPublicKey.label',
+                  })}
+                  value={settingsState.digitalRiverPublicKey}
+                  onChange={(e: React.FormEvent<HTMLInputElement>) =>
+                    setSettingsState({
+                      ...settingsState,
+                      digitalRiverPublicKey: e.currentTarget.value,
+                    })
+                  }
+                  helpText={formatMessage({
+                    id:
+                      'admin/digital-river.settings.digitalRiverPublicKey.helpText',
+                  })}
+                  token
+                />
+              </section>
               <section className="pb4">
                 <InputPassword
                   label={formatMessage({
@@ -298,34 +296,35 @@ const Admin: FC = () => {
                   })}
                 />
               </section>
-              {/* <section className="pv4">
+              <section className="pv4">
                 <Toggle
                   semantic
-                  label={`${formatMessage({
-                    id:
-                      'admin/digital-river.settings.enableTaxCalculation.label',
-                  })} ${taxStatus}`}
+                  label={formatMessage({
+                    id: 'admin/digital-river.settings.enableTaxInclusive.label',
+                  })}
                   size="large"
-                  checked={settingsState.enableTaxCalculation}
-                  disabled={!!taxStatus}
+                  checked={settingsState.isTaxInclusive}
                   onChange={() => {
                     setSettingsState({
                       ...settingsState,
-                      enableTaxCalculation: !settingsState.enableTaxCalculation,
+                      isTaxInclusive: !settingsState.isTaxInclusive,
                     })
                   }}
                   helpText={formatMessage({
                     id:
-                      'admin/digital-river.settings.enableTaxCalculation.helpText',
+                      'admin/digital-river.settings.enableTaxInclusive.helpText',
                   })}
                 />
-              </section> */}
+              </section>
               <section className="pt4">
                 <Button
                   variation="primary"
                   onClick={() => handleSaveSettings(showToast)}
                   isLoading={settingsLoading}
                   disabled={
+                    (appId !== 'vtexus.connector-digital-river' &&
+                      hasTaxConfiguration) ||
+                    !settingsState.digitalRiverPublicKey ||
                     !settingsState.digitalRiverToken ||
                     !settingsState.vtexAppKey ||
                     !settingsState.vtexAppToken

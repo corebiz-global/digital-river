@@ -30,19 +30,24 @@ import {
   digitalRiverCatalogSync,
   digitalRiverCatalogLogs,
   digitalRiverSkuSync,
+  digitalRiverProfile,
+  digitalRiverDeleteSource,
+  digitalRiverAddSource,
+  digitalRiverFileLinks,
   digitalRiverCustomers,
+  digitalRiverInvoices,
   digitalRiverTaxIds,
   digitalRiverCreateTaxIds,
 } from './middlewares/digitalRiver'
 import { throttle } from './middlewares/throttle'
 
-const TIMEOUT_MS = 800
+const TIMEOUT_MS = 5000
 
 const clients: ClientsConfig<Clients> = {
   implementation: Clients,
   options: {
     default: {
-      retries: 2,
+      retries: 0,
       timeout: TIMEOUT_MS,
     },
   },
@@ -123,9 +128,14 @@ export default new Service<Clients, RecorderState, ParamsContext>({
     updateCheckout: method({ POST: [digitalRiverUpdateCheckout] }),
     getISO2CountryCode: method({ GET: [countryCode] }),
     getSources: method({ GET: [digitalRiverGetSources] }),
+    deleteSource: method({ GET: [digitalRiverDeleteSource] }),
+    addSource: method({ GET: [digitalRiverAddSource] }),
     setup: method({ POST: [digitalRiverSetup] }),
     catalogSync: method({ POST: [digitalRiverCatalogSync] }),
     catalogLogs: method({ GET: [digitalRiverCatalogLogs] }),
+    getProfile: method({ GET: [digitalRiverProfile] }),
+    getFileLinks: method({ GET: [digitalRiverFileLinks] }),
+    getInvoices: method({ GET: [digitalRiverInvoices] }),
     getAllCustomers: method({ GET: [digitalRiverCustomers] }),
     taxIds: method({
       GET: [digitalRiverTaxIds],

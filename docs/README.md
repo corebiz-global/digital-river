@@ -20,9 +20,11 @@ This app integrates Digital River with VTEX checkout, allowing shoppers to inter
 
 1. Install this app in the desired account using the CLI command `vtex install vtexus.connector-digital-river`. If you have multiple accounts configured in a marketplace-seller relationship, install the app and repeat the following steps in each of the related accounts.
 2. In your admin sidebar, access the **Other** section and click on `Digital River` and then on `Configuration`.
-3. In the settings fields, enter your `Digital River token`, `VTEX App Key` and `VTEX App Token`. For initial testing, use a test `Digital River token` and leave the `Enable production mode` toggle turned off. Turn on the `Enable automatic catalog sync` toggle to enable syncing of SKUs from VTEX to Digital River each time a SKU is added or updated in your VTEX catalog.
+3. In the settings fields, enter your `Digital River public key`, `Digital River token`, `VTEX App Key` and `VTEX App Token`. For initial testing, use a test `Digital River token` and leave the `Enable production mode` toggle turned off. Turn on the `Enable automatic catalog sync` toggle to enable syncing of SKUs from VTEX to Digital River each time a SKU is added or updated in your VTEX catalog. Turn on the `Enable tax inclusive prices` toggle if your catalog uses tax-inclusive product prices.
 
 ⚠️ _For multiple accounts configured in a marketplace-seller relationship, the same `VTEX App Key` and `VTEX App Token` should be used for all of the accounts in which the app is installed. You can use any of the accounts to generate the key/token, and then grant additional permissions to the key/token by [creating a new user](https://help.vtex.com/en/tutorial/managing-users--tutorials_512) on each of the other accounts using the `VTEX App Key` in place of the user's email address, and then assigning the Owner role to that user._
+
+⚠️ _Digital River provides its own tax calculation service. Therefore there should be no other tax calculation provider enabled on your account. If there is, you will be required to disable it before Digital River can be configured._
 
 4. Is recommended to do an initial full catalog sync between VTEX and Digital River. To do this access the **Other** section, click on `Digital River` and then click on `Catalog Sync Logs`. On this page, click on the button `SYNC CATALOG`. This will send all current SKUs from your VTEX catalog to Digital River. Note that the `Enable automatic catalog sync` setting must have been enabled in step 3 above.
 
@@ -31,7 +33,7 @@ This app integrates Digital River with VTEX checkout, allowing shoppers to inter
 5. Add the following JavaScript to your `checkout6-custom.js` file, which is typically edited by accessing the **Store Setup** section in your admin sidebar and clicking `Checkout`, then clicking the blue gear icon and then the `Code` tab:
 
 ```js
-// DIGITAL RIVER Version 1.0.0
+// DIGITAL RIVER Version 2.0.0
 let checkoutUpdated = false
 const digitalRiverPaymentGroupClass = '.DigitalRiverPaymentGroup'
 const digitalRiverPaymentGroupButtonID =
@@ -50,6 +52,8 @@ const addressErrorDescription =
 const genericErrorTitle = 'Digital River checkout encountered an error.'
 const genericErrorDescription =
   'Please check your shipping information and try again.'
+let digitalriver
+let digitalRiverCompliance
 
 async function getCountryCode(country) {
   return await fetch(
@@ -65,12 +69,32 @@ async function getCountryCode(country) {
     })
 }
 
+function loadCompliance(orderForm) {
+  const locale = orderForm && orderForm.clientPreferencesData && orderForm.clientPreferencesData.locale;
+  const complianceOptions = {
+    classes: {
+      base: 'DRElement'
+    },
+    compliance: {
+      locale,
+      entity: 'DR_INC-ENTITY'
+    }
+  }
+  if ($('#compliance').length == 0) {
+    $('.container-main').append('<div id="compliance"></div>')
+    digitalRiverCompliance = digitalriver.createElement('compliance', complianceOptions);
+    digitalRiverCompliance.mount('compliance');
+  } else {
+    digitalRiverCompliance.update(complianceOptions);
+  }
+}
+
 function renderErrorMessage(title, body, append = false) {
   if (!append) {
     $(digitalRiverPaymentGroupClass).html(
       `<div><div class='DR-card'><div class='DR-collapse DR-show'><h5 class='DR-error-message'>${title}</h5><div><p>${body}</p></div></div></div></div>`
     )
-
+  
     return
   }
 
@@ -114,7 +138,7 @@ function clickBuyNowButton() {
   $('#payment-data-submit').click()
 }
 
-function loadDigitalRiver() {
+function loadDigitalRiverScript() {
   const e = document.createElement('script')
 
   ;(e.type = 'text/javascript'),
@@ -134,7 +158,7 @@ function loadDigitalRiver() {
 }
 
 function loadStoredCards(checkoutId) {
-  fetch(`${__RUNTIME__.rootPath || ``}/_v/api/digital-river/checkout/sources`)
+  fetch(`${__RUNTIME__.rootPath || ``}/_v/api/digital-river/checkout/sources?v=${new Date().getTime()}`)
     .then((response) => {
       return response.json()
     })
@@ -199,6 +223,13 @@ function loadStoredCards(checkoutId) {
     })
 }
 
+function loadDigitalRiver(orderForm) {
+  const locale = orderForm && orderForm.clientPreferencesData && orderForm.clientPreferencesData.locale
+    digitalriver = new DigitalRiver(digitalRiverPublicKey, {
+      locale: locale ?? 'en-US',
+    })
+}
+
 async function initDigitalRiver(orderForm) {
   hideBuyNowButton()
 
@@ -247,12 +278,6 @@ async function initDigitalRiver(orderForm) {
 
       await updateOrderForm('PUT', checkoutId)
 
-      const digitalriver = new DigitalRiver(digitalRiverPublicKey, {
-        locale: orderForm.clientPreferencesData.locale
-          ? orderForm.clientPreferencesData.locale.toLowerCase()
-          : 'en_US',
-      })
-
       const country = await getCountryCode(
         orderForm.shippingData.address.country
       )
@@ -261,7 +286,7 @@ async function initDigitalRiver(orderForm) {
         sessionId: paymentSessionId,
         options: {
           flow: 'checkout',
-          showComplianceSection: true,
+          showComplianceSection: false,
           showSavePaymentAgreement: true,
           showTermsOfSaleDisclosure: true,
           button: {
@@ -317,21 +342,22 @@ async function initDigitalRiver(orderForm) {
           loadStoredCards(checkoutId)
         },
       }
-
       const dropin = digitalriver.createDropin(configuration)
-      $('#drop-in-spinner').remove()
+      $('#drop-in-spinner').remove();
+      $('#drop-in').children().remove();
       dropin.mount('drop-in')
     })
 }
 
 $(document).ready(function () {
-  loadDigitalRiver()
+  loadDigitalRiverScript();
   if (~window.location.hash.indexOf('#/payment')) {
     if (
       $('.payment-group-item.active').attr('id') ===
       digitalRiverPaymentGroupButtonID
     ) {
       vtexjs.checkout.getOrderForm().done(function (orderForm) {
+        loadDigitalRiver(orderForm);
         initDigitalRiver(orderForm)
       })
     } else {
@@ -341,6 +367,8 @@ $(document).ready(function () {
 })
 
 $(window).on('orderFormUpdated.vtex', function (evt, orderForm) {
+  loadDigitalRiver(orderForm);
+  loadCompliance(orderForm);
   if (
     ~window.location.hash.indexOf('#/payment') &&
     $('.payment-group-item.active').attr('id') ===

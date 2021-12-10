@@ -1,9 +1,15 @@
+/* eslint-disable @typescript-eslint/no-shadow */
+/* eslint-disable @typescript-eslint/no-unused-vars */
+/* eslint-disable no-await-in-loop */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import pThrottle from 'p-throttle'
 import type { EventContext } from '@vtex/api'
-import { ResolverError } from '@vtex/api'
+import { ResolverError, UserInputError } from '@vtex/api'
+import convertIso3To2 from 'country-iso-3-to-2'
 import { json } from 'co-body'
 
+import { getSession } from '../resolvers/session/service'
+import type { SessionFields } from '../resolvers/session/sessionResolver'
 import {
   countries,
   schema,
@@ -13,6 +19,8 @@ import {
   DATA_ENTITY,
   SCHEMA_NAME,
 } from '../constants'
+
+export const CHECKOUT_VTEX_COM = 'checkout.vtex.com'
 
 const fields = ['_all']
 const pagination = {
@@ -494,4 +502,452 @@ async function createOrUpdateSku(
       schema: SCHEMA_NAME,
     })
   }
+}
+
+export async function digitalRiverProfile(
+  ctx: Context,
+  next: () => Promise<unknown>
+) {
+  const {
+    cookies,
+    clients: { orderForm, apps },
+    vtex: { logger },
+  } = ctx
+
+  const orderFormCookie = cookies.get(CHECKOUT_VTEX_COM)
+  const orderFormId = orderFormCookie?.split('=')[1]
+  const app: string = getAppId()
+  const settings: AppSettings = await apps.getAppSettings(app)
+
+  if (!orderFormId) {
+    throw new UserInputError('No orderForm ID provided')
+  }
+
+  let order
+
+  try {
+    order = await orderForm.getOrderForm(
+      orderFormId,
+      settings.vtexAppKey,
+      settings.vtexAppToken
+    )
+
+    logger.info({
+      message: 'DigitalRiverProfile-getOrderForm',
+      orderFormId,
+    })
+  } catch (err) {
+    logger.error({
+      error: err,
+      orderFormId,
+      message: 'DigitalRiverProfile-getOrderForm',
+    })
+
+    throw new ResolverError({
+      message: `Get order by ID ${orderFormId}`,
+      error: err,
+    })
+  }
+
+  const sessionData: SessionFields = await getSession(ctx)
+
+  const profileData = sessionData.impersonate?.profile
+    ? sessionData.impersonate.profile
+    : sessionData.profile
+
+  const { address } = order.shippingData || {}
+  const code: any = convertIso3To2((address?.country as string)?.toUpperCase())
+
+  const response = {
+    locale: order.clientPreferencesData?.locale
+      ? order.clientPreferencesData?.locale.toLowerCase()
+      : 'en_US',
+    firstName: profileData?.firstName,
+    lastName: profileData?.lastName,
+    email: profileData?.email,
+    phoneNumber: order?.clientProfileData?.phone,
+    address: {
+      line1:
+        order.shippingData?.address &&
+        `${
+          order.shippingData?.address?.number
+            ? `${order.shippingData?.address?.number} `
+            : ''
+        }${order.shippingData?.address?.street}`,
+      line2: order.shippingData?.address?.complement,
+      city: order.shippingData?.address?.city,
+      state: order.shippingData?.address?.state,
+      postalCode: order.shippingData?.address?.postalCode,
+      country: code && 'US',
+    },
+  }
+
+  ctx.status = 200
+  ctx.body = { ...response }
+  await next()
+}
+
+export async function digitalRiverDeleteSource(
+  ctx: Context,
+  next: () => Promise<unknown>
+) {
+  const { id } = ctx.vtex.route.params
+  const {
+    clients: { digitalRiver, apps },
+    vtex: { logger },
+  } = ctx
+
+  const app: string = getAppId()
+  const settings: AppSettings = await apps.getAppSettings(app)
+  const sessionData: SessionFields = await getSession(ctx)
+
+  const profileData = sessionData.impersonate?.profile
+    ? sessionData.impersonate.profile
+    : sessionData.profile
+
+  const customerId = profileData?.id as string
+  const sourceId = id as string
+
+  try {
+    await digitalRiver.detachSourceCustomer({ settings, customerId, sourceId })
+
+    logger.info({
+      message: 'DigitalRiverDeleteSource-detachSourceCustomer',
+      customerId,
+      sourceId,
+    })
+  } catch (err) {
+    logger.error({
+      error: err,
+      customerId,
+      sourceId,
+      message: 'DigitalRiverDeleteSource-detachSourceCustomer',
+    })
+
+    throw new ResolverError({
+      message: `Detach source customer with customerId ${customerId} and sourceId ${sourceId}`,
+      error: err,
+    })
+  }
+
+  ctx.status = 200
+  await next()
+}
+
+export async function digitalRiverAddSource(
+  ctx: Context,
+  next: () => Promise<unknown>
+) {
+  const { id } = ctx.vtex.route.params
+  const {
+    clients: { digitalRiver, apps },
+    vtex: { logger },
+  } = ctx
+
+  const app: string = getAppId()
+  const settings: AppSettings = await apps.getAppSettings(app)
+  const sessionData: SessionFields = await getSession(ctx)
+
+  const profileData = sessionData.impersonate?.profile
+    ? sessionData.impersonate.profile
+    : sessionData.profile
+
+  const customerId = profileData?.id as string
+  const sourceId = id as string
+
+  try {
+    await digitalRiver.attachSourceCustomer({ settings, customerId, sourceId })
+
+    logger.info({
+      message: 'DigitalRiverAddSource-attachSourceCustomer',
+      customerId,
+      sourceId,
+    })
+  } catch (err) {
+    logger.error({
+      error: err,
+      customerId,
+      sourceId,
+      message: 'DigitalRiverAddSource-attachSourceCustomer',
+    })
+
+    throw new ResolverError({
+      message: `Attach source customer with customerId ${customerId} and sourceId ${sourceId}`,
+      error: err,
+    })
+  }
+
+  ctx.status = 200
+  await next()
+}
+
+export async function digitalRiverFileLinks(
+  ctx: Context,
+  next: () => Promise<unknown>
+) {
+  const {
+    clients: { digitalRiver, apps, orders },
+    vtex: { logger, route },
+  } = ctx
+
+  const response = []
+  const orderId = route.params.id.toString()
+  let orderResponse = null
+
+  logger.info({
+    message: 'DigitalRiverFileLinks-digitalRiverFileLinks',
+    orderId,
+  })
+
+  const app: string = getAppId()
+  const settings: AppSettings = await apps.getAppSettings(app)
+
+  try {
+    orderResponse = await orders.getOrder({
+      orderId,
+      ...settings,
+    })
+
+    logger.info({
+      message: 'DigitalRiverFileLinks-getOrder',
+      orderId,
+    })
+  } catch (err) {
+    logger.error({
+      error: err,
+      orderId,
+      message: 'DigitalRiverFileLinks-getOrderFailure',
+    })
+
+    throw new ResolverError({
+      message: `Get order by ID error using Order ID ${orderId}`,
+      error: err,
+    })
+  }
+
+  let digitalRiverOrderResponse
+  let paymentMethod
+
+  for (const [
+    _,
+    transaction,
+  ] of orderResponse.paymentData.transactions.entries()) {
+    paymentMethod = transaction.payments.find(
+      (payment: any) => payment.paymentSystemName === 'DigitalRiver'
+    )
+    if (paymentMethod) {
+      break
+    }
+  }
+
+  if (paymentMethod?.paymentSystemName === 'DigitalRiver') {
+    try {
+      digitalRiverOrderResponse = await digitalRiver.getOrderById({
+        settings,
+        orderId: paymentMethod?.tid,
+      })
+
+      logger.info({
+        message: 'DigitalRiverFileLinks-getOrderById',
+        tid: paymentMethod?.tid,
+        data: digitalRiverOrderResponse,
+      })
+    } catch (err) {
+      logger.error({
+        error: err,
+        tid: paymentMethod?.tid,
+        message: 'DigitalRiverFileLinks-getOrderByIdFailure',
+      })
+
+      throw new ResolverError({
+        message: `Get order by ID error using Digital River Order ID ${paymentMethod?.tid}`,
+        error: err,
+      })
+    }
+
+    const dateExpire = new Date()
+
+    dateExpire.setDate(dateExpire.getDate() + 30)
+    const expiresTime = `${dateExpire.getFullYear()}-${
+      dateExpire.getMonth() + 1
+    }-${dateExpire.getDate()}T00:00:00Z`
+
+    if (digitalRiverOrderResponse.invoicePDFs) {
+      for (let i = 0; i < digitalRiverOrderResponse.invoicePDFs.length; i++) {
+        const payload = {
+          fileId: digitalRiverOrderResponse.invoicePDFs[i].id,
+          expiresTime,
+        }
+
+        const fileResponse = await digitalRiver.createFileLink({
+          settings,
+          payload,
+        })
+
+        fileResponse.name = 'Download invoice'
+        response.push(fileResponse)
+      }
+    }
+
+    if (digitalRiverOrderResponse.creditMemoPDFs) {
+      for (
+        let i = 0;
+        i < digitalRiverOrderResponse.creditMemoPDFs.length;
+        i++
+      ) {
+        const payload = {
+          fileId: digitalRiverOrderResponse.creditMemoPDFs[i].id,
+          expiresTime,
+        }
+
+        const fileResponse = await digitalRiver.createFileLink({
+          settings,
+          payload,
+        })
+
+        fileResponse.name = 'Download memo'
+        response.push(fileResponse)
+      }
+    }
+  }
+
+  ctx.status = 200
+  ctx.body = response
+  await next()
+}
+
+export async function digitalRiverInvoices(
+  ctx: Context,
+  next: () => Promise<unknown>
+) {
+  const {
+    clients: { orderForm, apps, digitalRiver },
+    vtex: { logger },
+  } = ctx
+
+  const response: DRInvoice[] = []
+
+  const app: string = getAppId()
+  const settings: AppSettings = await apps.getAppSettings(app)
+
+  const sessionData: SessionFields = await getSession(ctx)
+
+  const profileData = sessionData.impersonate?.profile
+    ? sessionData.impersonate.profile
+    : sessionData.profile
+
+  if (profileData?.email) {
+    const dateExpire = new Date()
+
+    dateExpire.setDate(dateExpire.getDate() + 30)
+    const expiresTime = `${dateExpire.getFullYear()}-${
+      dateExpire.getMonth() + 1
+    }-${dateExpire.getDate()}T00:00:00Z`
+
+    let ordersDR
+
+    try {
+      ordersDR = await digitalRiver.getOrdersByEmail({
+        settings,
+        email: profileData?.email,
+      })
+      logger.info({
+        message: 'DigitalRiverInvoices-getOrdersByEmail',
+        email: profileData?.email,
+      })
+    } catch (err) {
+      logger.error({
+        error: err,
+        email: profileData?.email,
+        message: 'DigitalRiverInvoices-getOrdersByEmail',
+      })
+      throw new ResolverError({
+        message: `Get orders by email ${profileData?.email}`,
+        error: err,
+      })
+    }
+
+    for (const [_, orderDR] of ordersDR.data.entries()) {
+      let orderData
+
+      try {
+        orderData = await orderForm.getOrderFormBySequence(
+          orderDR.upstreamId,
+          settings.vtexAppKey,
+          settings.vtexAppToken
+        )
+
+        logger.info({
+          message: 'DigitalRiverProfile-getOrderFormBySequence',
+          sequence: orderDR.upstreamId,
+        })
+      } catch (err) {
+        logger.error({
+          error: err,
+          sequence: orderDR.upstreamId,
+          message: 'DigitalRiverProfile-getOrderFormBySequence',
+        })
+
+        throw new ResolverError({
+          message: `Get order by sequence ${orderDR.upstreamId}`,
+          error: err,
+        })
+      }
+
+      if (orderData) {
+        const invoicePDFs: DRFilePDF[] = []
+        const creditMemoPDFs: DRFilePDF[] = []
+        const invoiceResponse: DRInvoice = {
+          orderId: orderData.orderId,
+          orderDate: orderData.creationDate,
+          totalAmount: orderDR.totalAmount,
+          currency: orderDR.currency,
+          invoicePDFs,
+          creditMemoPDFs,
+        }
+
+        if (orderData && orderDR.invoicePDFs) {
+          for (let i = 0; i < orderDR.invoicePDFs.length; i++) {
+            const payload = {
+              fileId: orderDR.invoicePDFs[i].id,
+              expiresTime,
+            }
+
+            const fileResponse = await digitalRiver.createFileLink({
+              settings,
+              payload,
+            })
+
+            fileResponse.name = `Invoice_${orderDR.id}`
+            invoicePDFs.push(fileResponse)
+          }
+        }
+
+        if (orderData && orderDR.creditMemoPDFs) {
+          for (let i = 0; i < orderDR.creditMemoPDFs.length; i++) {
+            const payload = {
+              fileId: orderDR.creditMemoPDFs[i].id,
+              expiresTime,
+            }
+
+            const fileResponse = await digitalRiver.createFileLink({
+              settings,
+              payload,
+            })
+
+            fileResponse.name = `Credit_Memo_${orderDR.id}`
+            creditMemoPDFs.push(fileResponse)
+          }
+        }
+
+        invoiceResponse.invoicePDFs = invoicePDFs
+        invoiceResponse.creditMemoPDFs = creditMemoPDFs
+        response.push(invoiceResponse)
+      }
+    }
+  }
+
+  ctx.status = 200
+  ctx.body = response
+  await next()
 }

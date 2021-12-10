@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Added
+
+- Fix SonarCloud integration (GitHub Actions)
+
+## [2.0.1] - 2021-12-03
+
+### Fixed
+
+- Disable automatic retry of Digital River API requests and increase timeout
+
+## [2.0.0] - 2021-11-23
+
+### Added
+
+- Digital river invoices page under my account
+- Digital river credit cards page under my account
+- Added compliance in checkout's footer
+- Added tax calculation inclusive and exclusive
+
 ## [1.3.0] - 2021-11-08
 
 ### Added

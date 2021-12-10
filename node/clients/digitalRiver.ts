@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import type { InstanceOptions, IOContext, IOResponse } from '@vtex/api'
 import { ExternalClient } from '@vtex/api'
 
@@ -112,6 +113,24 @@ export default class DigitalRiver extends ExternalClient {
     )
   }
 
+  // detachSourceCustomer
+  public async detachSourceCustomer({
+    settings,
+    customerId,
+    sourceId,
+  }: {
+    settings: AppSettings
+    customerId: string
+    sourceId: string
+  }): Promise<any> {
+    return this.http.delete(`/customers/${customerId}/sources/${sourceId}`, {
+      headers: {
+        Authorization: `Bearer ${settings.digitalRiverToken}`,
+        'Content-Type': `application/json`,
+      },
+    })
+  }
+
   // createCheckout
   public async createCheckout({
     settings,
@@ -121,6 +140,38 @@ export default class DigitalRiver extends ExternalClient {
     checkoutPayload: DRCheckoutPayload
   }): Promise<DRCheckoutResponse> {
     return this.http.post(`/checkouts`, JSON.stringify(checkoutPayload), {
+      headers: {
+        Authorization: `Bearer ${settings.digitalRiverToken}`,
+        'Content-Type': `application/json`,
+      },
+    })
+  }
+
+  // get Checkout
+  public async getCheckout({
+    settings,
+    checkoutId,
+  }: {
+    settings: AppSettings
+    checkoutId: string
+  }): Promise<any> {
+    return this.http.get(`/checkouts/${checkoutId}`, {
+      headers: {
+        Authorization: `Bearer ${settings.digitalRiverToken}`,
+        'Content-Type': `application/json`,
+      },
+    })
+  }
+
+  // delete Checkout
+  public async deleteCheckout({
+    settings,
+    checkoutId,
+  }: {
+    settings: AppSettings
+    checkoutId: string
+  }): Promise<any> {
+    return this.http.delete(`/checkouts/${checkoutId}`, {
       headers: {
         Authorization: `Bearer ${settings.digitalRiverToken}`,
         'Content-Type': `application/json`,
@@ -213,6 +264,22 @@ export default class DigitalRiver extends ExternalClient {
     orderId: string
   }): Promise<DROrderResponse> {
     return this.http.get(`/orders/${orderId}`, {
+      headers: {
+        Authorization: `Bearer ${settings.digitalRiverToken}`,
+        'Content-Type': `application/json`,
+      },
+    })
+  }
+
+  // getOrders
+  public async getOrdersByEmail({
+    settings,
+    email,
+  }: {
+    settings: AppSettings
+    email: string
+  }): Promise<any> {
+    return this.http.get(`/orders?email=${email}`, {
       headers: {
         Authorization: `Bearer ${settings.digitalRiverToken}`,
         'Content-Type': `application/json`,
@@ -313,6 +380,22 @@ export default class DigitalRiver extends ExternalClient {
     skuPayload: DRSkuPayload
   }): Promise<DRSkuResponse> {
     return this.http.put(`/skus/${skuId}`, JSON.stringify(skuPayload), {
+      headers: {
+        Authorization: `Bearer ${settings.digitalRiverToken}`,
+        'Content-Type': `application/json`,
+      },
+    })
+  }
+
+  // fileLinks
+  public async createFileLink({
+    settings,
+    payload,
+  }: {
+    settings: AppSettings
+    payload: DRFileLinkPayload
+  }): Promise<DRFileLinkResponse> {
+    return this.http.post(`/file-links`, JSON.stringify(payload), {
       headers: {
         Authorization: `Bearer ${settings.digitalRiverToken}`,
         'Content-Type': `application/json`,

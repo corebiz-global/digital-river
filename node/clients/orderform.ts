@@ -17,6 +17,21 @@ export default class OrderFormClient extends JanusClient {
     })
   }
 
+  public async getOrderFormBySequence(
+    sequenceOrder: string,
+    vtexAppKey: string,
+    vtexAppToken: string
+  ): Promise<any> {
+    return this.http.get(`api/oms/pvt/orders/seq${sequenceOrder}`, {
+      headers: {
+        'X-VTEX-API-AppKey': vtexAppKey,
+        'X-VTEX-API-AppToken': vtexAppToken,
+      },
+      params: { disableAutoCompletion: true },
+      metric: 'orderForm-get',
+    })
+  }
+
   public async getOrderForm(
     orderFormId: string,
     vtexAppKey: string,

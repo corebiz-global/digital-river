@@ -72,6 +72,26 @@
       "path": "/_v/api/digital-river/checkout/sources",
       "public": true
     },
+    "deleteSource": {
+      "path": "/_v/api/digital-river/delete-source/:id",
+      "public": true
+    },
+    "addSource": {
+      "path": "/_v/api/digital-river/source/:id",
+      "public": true
+    },
+    "getProfile": {
+      "path": "/_v/api/digital-river/my-account/profile",
+      "public": true
+    },
+    "getFileLinks": {
+      "path": "/_v/api/digital-river/orders/:id",
+      "public": true
+    },
+    "getInvoices": {
+      "path": "/_v/api/digital-river/invoices",
+      "public": true
+    },
     "getAllCustomers": {
       "path": "/_v/api/digital-river/customers",
       "public": true
