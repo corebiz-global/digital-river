@@ -33,7 +33,7 @@ This app integrates Digital River with VTEX checkout, allowing shoppers to inter
 5. Add the following JavaScript to your `checkout6-custom.js` file, which is typically edited by accessing the **Store Setup** section in your admin sidebar and clicking `Checkout`, then clicking the blue gear icon and then the `Code` tab:
 
 ```js
-// DIGITAL RIVER Version 2.0.0
+// DIGITAL RIVER Version 2.0.1
 let checkoutUpdated = false
 const digitalRiverPaymentGroupClass = '.DigitalRiverPaymentGroup'
 const digitalRiverPaymentGroupButtonID =
@@ -54,7 +54,7 @@ const genericErrorDescription =
   'Please check your shipping information and try again.'
 let digitalriver
 let digitalRiverCompliance
-
+let digitalRiverBillingAddress
 async function getCountryCode(country) {
   return await fetch(
     `${
@@ -154,7 +154,9 @@ function loadDigitalRiverScript() {
     (f.href = 'https://js.digitalriverws.com/v1/css/DigitalRiver.css')
   const [u] = document.getElementsByTagName('link')
 
-  u.parentNode.insertBefore(f, u)
+  u.parentNode.insertBefore(f, u);
+  mountBillingAddressStyle();
+  getBillingAddress();
 }
 
 function loadStoredCards(checkoutId) {
@@ -221,6 +223,302 @@ function loadStoredCards(checkoutId) {
         }
       }
     })
+}
+
+function mountBillingAddressStyle() {
+    var css = `
+        .DR-billing-address {
+            margin: 16px 0px;
+        }
+        .DR-billing-address .input {
+            vertical-align: top;
+        }
+        .vtex-billing-address-form h3 {
+            display: block !important;
+        }
+        .vtex-checkbox-billing label {
+            display: inline-block;
+            vertical-align: sub;
+        }
+        .billing-address-card {
+            border: 1px solid rgba(0,0,0,.26);
+            padding: 16px;
+        }
+        .billing-address-editcard {
+            display: block !important;
+            text-align: right;
+            width: 100% !important;
+            font-size: 14px;
+            text-decoration: underline;
+            color: #1a73e8;
+            margin-bottom: 4px;
+            cursor: pointer;
+        }
+        .billing-address-card label {
+            display: inline-block;
+            margin-right: 4px;
+        }
+        .billing-address-card div {
+            display: inline-block;
+            width: 48%;
+        }
+        .billing-form {
+            display: none;
+        }
+        #billing-address-submit {
+            background-color: #1264a3;
+            color: #FFF;
+            height: 56px;
+            border-radius: .25rem;
+            text-align: center;
+            border-top: none!important;
+            border: none;
+            font-weight: 400;
+            padding: 1rem;
+            width: 250px;
+            margin-bottom: 24px;
+            margin-top: 24px;
+        }
+        .billing-first-name,
+        .billing-last-name,
+        .billing-address-infos div,
+        .billing-address-postalcode,
+        .billing-email,
+        .billing-phone-number,
+        .billing-postalcode {
+            width : 48% !important;
+            margin: 0 !important;
+            display: inline-block;
+            vertical-align: top;
+        }
+        @media (max-width: 768px) {
+            .billing-first-name,
+            .billing-last-name,
+            .billing-address-postalcode,
+            .billing-address-infos div,
+            .billing-email,
+            .billing-phone-number,
+            .billing-postalcode {
+                width: 100% !important;
+            }
+        }
+    `;
+    var head = document.head || document.getElementsByTagName('head')[0];
+    var style = document.createElement('style');
+
+    head.appendChild(style);
+    style.appendChild(document.createTextNode(css));
+}
+
+function handleBillingSameClick(sameElement) {
+    if (sameElement.checked) {
+        setBillingAddress();
+        $(".vtex-billing-address-form").hide();
+        $('.billing-address-card').hide();
+        $('.billing-form').hide();
+    } else {
+        setBillingAddress();
+        $(".vtex-billing-address-form").show();
+        $('.billing-address-card').show();
+        $('.billing-form').hide();
+    }
+}
+
+function handleBillingPostalCode(e) {
+    const value = e.target.value;
+    if (!value) {
+      $('.billing-address-infos').hide();
+      return;
+    }
+    const countryCode = vtexjs.checkout.orderForm.storePreferencesData.countryCode;
+    const url = `${window.location.origin}/api/checkout/pub/postal-code/${countryCode}/${value}`;
+    fetch(url).then((resp) => resp.json())
+      .then(async data => {
+        if (data?.city) {
+          $('#billing-city').val(data?.city);
+          $('#billing-state').val(data?.state);
+          await $('.billing-address-infos').show();
+          setBillingAddress();
+        } else {
+          $('.billing-address-infos').hide();
+          e.target.classList.add('error');
+          e.target.insertAdjacentHTML('afterend', '<span class="help error">Invalid postal code.</span>');
+        }
+      })
+      .catch(error => {
+        console.error(error);
+      });
+}
+
+function handleBillingAddressInputs(target) {
+    if ($('.DR-billing-address').length == 0) {
+        return;
+    }
+    if (target.hasAttribute('required')) {
+        if (target.value) {
+            target.classList.remove('error');
+            $(target).parent('div').find('span').remove();
+            setBillingAddress();
+        } else {
+            if (target.classList.contains('error')) return;
+            target.classList.add('error');
+            target.insertAdjacentHTML('afterend', '<span class="help error">This field is required.</span>');
+            setBillingAddress();
+        }
+    }
+}
+
+function setBillingAddress() {
+
+    let data = {
+        firstname: null,
+        lastname: null,
+        email: null,
+        phonenumber: null,
+        postalcode: null,
+        addressline1: null,
+        addressline2: null,
+        city: null,
+        state: null,
+        isSame: $('#billing-the-same').is(':checked'),
+        orderFormId: vtexjs.checkout && vtexjs.checkout.orderForm && vtexjs.checkout.orderForm.orderFormId
+    };
+    $('.vtex-billing-address-form input').each((i, item) => {
+        const property = item.id.split('billing-')[1].replace('-', '');
+        data[property] = item.value;
+    });
+    localStorage.setItem('DRBillingAddress', btoa(JSON.stringify(data)));
+    digitalRiverBillingAddress = JSON.parse(atob(localStorage.getItem('DRBillingAddress')));
+}
+
+function handleBillingAddressSubmit() {
+    var validForm = true;
+    $('.vtex-billing-address-form input[required]').each((i, item) => {
+        if (!item.value) {
+            validForm = false;
+        }
+        handleBillingAddressInputs(item)
+    });
+    if (validForm) {
+        $('#drop-in').remove();
+        initDigitalRiver(vtexjs.checkout.orderForm);
+    }
+}
+
+function getBillingAddress() {
+    digitalRiverBillingAddress = localStorage.getItem('DRBillingAddress');
+    if (digitalRiverBillingAddress) {
+        digitalRiverBillingAddress = digitalRiverBillingAddress ? atob(digitalRiverBillingAddress) : digitalRiverBillingAddress;
+        digitalRiverBillingAddress = JSON.parse(digitalRiverBillingAddress);
+        if (digitalRiverBillingAddress.orderFormId !== vtexjs.checkout && vtexjs.checkout.orderForm && vtexjs.checkout.orderForm.orderFormId) {
+            setBillingAddress();
+        }
+    } else {
+        setBillingAddress();
+    }
+}
+
+function mountBillingAddress() {
+    if ($('.DR-billing-address').length > 0) {
+        return;
+    }
+    var billingAddress = `
+        <div class="DR-billing-address">
+            <div class="vtex-billing-address">
+                <div class="vtex-checkbox-billing">
+                    <input type="checkbox" id="billing-the-same" onclick="handleBillingSameClick(this)" ${digitalRiverBillingAddress && digitalRiverBillingAddress.isSame ? "checked" : ""} />
+                    <label for="billing-the-same"><span><strong>My billing and shipping information are the same.</strong></span></label>
+                </div>
+                <div class="vtex-billing-address-form" style="${digitalRiverBillingAddress && digitalRiverBillingAddress.isSame ? 'display: none;' : ''}">
+                    <header>
+                        <h3>Billing Address</h3>
+                    </header>
+                    <div class="billing-address-card" style="${digitalRiverBillingAddress && !digitalRiverBillingAddress.isSame && digitalRiverBillingAddress.firstname ? '' : 'display: none;'}">
+                        <div class="billing-address-editcard">Edit</div>
+                        <div>
+                            <label>First name: </label><span>${digitalRiverBillingAddress.firstname}</span>
+                        </div>
+                        <div>
+                            <label>Last name: </label><span>${digitalRiverBillingAddress.lastname}</span>
+                        </div>
+                        <div>
+                            <label>Email: </label><span>${digitalRiverBillingAddress.email}</span>
+                        </div>
+                        <div>
+                            <label>Phone number: </label><span>${digitalRiverBillingAddress.phonenumber}</span>
+                        </div>
+                        <div>
+                            <label>Postal Code: </label><span>${digitalRiverBillingAddress.postalcode}</span>
+                        </div>
+                        <div>
+                            <label>Address Line 1: </label><span>${digitalRiverBillingAddress.addressline1}</span>
+                        </div>
+                        <div>
+                            <label>Address Line 2: </label><span>${digitalRiverBillingAddress.addressline2}</span>
+                        </div>
+                        <div>
+                            <label>City: </label><span>${digitalRiverBillingAddress.city}</span>
+                        </div>
+                        <div>
+                            <label>State: </label><span>${digitalRiverBillingAddress.state}</span>
+                        </div>
+                    </div>
+                    <div class="billing-address-step-one billing-form">
+                        <div class="billing-first-name input text required">
+                            <label for="billing-first-name">First name</label>
+                            <input type="text" class="input-xlarge" value="${digitalRiverBillingAddress && digitalRiverBillingAddress.firstname ? digitalRiverBillingAddress.firstname : ""}" data-hj-whitelist="true" id="billing-first-name" required />
+                        </div>
+                        <div class="billing-last-name input text required">
+                            <label for="billing-last-name"> Last name </label>
+                            <input type="text" id="billing-last-name" value="${digitalRiverBillingAddress && digitalRiverBillingAddress.lastname ? digitalRiverBillingAddress.lastname : ""}" required />
+                        </div>
+                        <div class="billing-email input text required">
+                            <label for="billing-email"> Email </label>
+                            <input type="email" id="billing-email" value="${digitalRiverBillingAddress && digitalRiverBillingAddress.email ? digitalRiverBillingAddress.email : ""}" required />
+                        </div>
+                        <div  class="billing-phone-number input text required">
+                            <label for="billing-last-name"> Phone number </label>
+                            <input type="tel" id="billing-phone-number" value="${digitalRiverBillingAddress && digitalRiverBillingAddress.phonenumber ? digitalRiverBillingAddress.phonenumber : ""}" required />
+                        </div>
+                    </div>
+                    <div class="billing-address-postal-code billing-form">
+                        <div class="input required text billing-postcode">
+                            <label for="billing-postalcode">Postal Code</label>
+                            <input type="text" id="billing-postalcode" value="${digitalRiverBillingAddress && digitalRiverBillingAddress.postalcode ? digitalRiverBillingAddress.postalcode : ""}" required />
+                        </div>
+                    </div>
+                    <div class="billing-address-infos billing-form" style="display:none">
+                        <div class="input required text">
+                            <label for="billing-addressline1">Address Line 1</label>
+                            <input type="text" id="billing-addressline1" value="${digitalRiverBillingAddress && digitalRiverBillingAddress.addressline1 ? digitalRiverBillingAddress.addressline1 : ""}" required />
+                        </div>
+                        <div class="input required text">
+                            <label for="billing-addressline2">Address Line 2</label>
+                            <input type="text" id="billing-addressline2" value="${digitalRiverBillingAddress && digitalRiverBillingAddress.addressline2 ? digitalRiverBillingAddress.addressline2 : ""}" />
+                        </div>
+                        <div class="input text required">
+                            <label for="billing-city">City</label>
+                            <input type="text" id="billing-city" value="${digitalRiverBillingAddress && digitalRiverBillingAddress.city ? digitalRiverBillingAddress.city : ""}" required />
+                        </div>
+                        <div class="input text required">
+                            <label for="billing-state">State</label>
+                            <input type="text" id="billing-state" value="${digitalRiverBillingAddress && digitalRiverBillingAddress.state ? digitalRiverBillingAddress.state : ""}" required />
+                        </div>
+                    </div>
+                    <div class="billing-form"><button id="billing-address-submit">SAVE BILLING ADDRESS</button></div>
+                </div>
+            </div>
+        </div>`;
+        $('#drop-in').prepend(billingAddress);
+        $('#billing-postalcode').on('change', (e) => handleBillingPostalCode(e));
+        $('.vtex-billing-address-form input').on('blur', (e) => handleBillingAddressInputs(e.target));
+        $('#billing-address-submit').on('click', () => handleBillingAddressSubmit());
+        $('.billing-address-editcard').on('click', () => handleBillingAddressEditClick());
+}
+
+function handleBillingAddressEditClick() {
+    $('.billing-form').show();
+    $('.billing-address-card').hide();
 }
 
 function loadDigitalRiver(orderForm) {
@@ -294,20 +592,20 @@ async function initDigitalRiver(orderForm) {
           },
         },
         billingAddress: {
-          firstName: orderForm.clientProfileData.firstName,
-          lastName: orderForm.clientProfileData.lastName,
-          email: orderForm.clientProfileData.email,
-          phoneNumber: orderForm.clientProfileData.phone,
+          firstName: digitalRiverBillingAddress.isSame ? orderForm.clientProfileData.firstName : digitalRiverBillingAddress.firstname,
+          lastName: digitalRiverBillingAddress.isSame ? orderForm.clientProfileData.lastName : digitalRiverBillingAddress.lastname,
+          email: digitalRiverBillingAddress.isSame ? orderForm.clientProfileData.email : digitalRiverBillingAddress.email,
+          phoneNumber: digitalRiverBillingAddress.phonenumber || orderForm.clientProfileData.phone,
           address: {
-            line1: `${
+            line1: digitalRiverBillingAddress.isSame ? `${
               orderForm.shippingData.address.number
                 ? `${orderForm.shippingData.address.number} `
                 : ''
-            }${orderForm.shippingData.address.street}`,
-            line2: orderForm.shippingData.address.complement,
-            city: orderForm.shippingData.address.city,
-            state: orderForm.shippingData.address.state,
-            postalCode: orderForm.shippingData.address.postalCode,
+            }${orderForm.shippingData.address.street}` : digitalRiverBillingAddress.addressline1,
+            line2: digitalRiverBillingAddress.isSame ? orderForm.shippingData.address.complement : digitalRiverBillingAddress.addressline2,
+            city: digitalRiverBillingAddress.isSame ? orderForm.shippingData.address.city : digitalRiverBillingAddress.city,
+            state: digitalRiverBillingAddress.isSame ? orderForm.shippingData.address.state : digitalRiverBillingAddress.state,
+            postalCode: digitalRiverBillingAddress.isSame ? orderForm.shippingData.address.postalCode : digitalRiverBillingAddress.postalcode,
             country,
           },
         },
@@ -339,7 +637,8 @@ async function initDigitalRiver(orderForm) {
           renderErrorMessage(paymentErrorTitle, paymentErrorDescription, true)
         },
         onReady(data) {
-          loadStoredCards(checkoutId)
+          mountBillingAddress();
+          loadStoredCards(checkoutId);
         },
       }
       const dropin = digitalriver.createDropin(configuration)
