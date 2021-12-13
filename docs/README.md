@@ -285,7 +285,8 @@ function mountBillingAddressStyle() {
         .billing-address-postalcode,
         .billing-email,
         .billing-phone-number,
-        .billing-postalcode {
+        .billing-postalcode,
+        .billing-address-postal-code {
             width : 48% !important;
             margin: 0 !important;
             display: inline-block;
@@ -319,8 +320,13 @@ function handleBillingSameClick(sameElement) {
     } else {
         setBillingAddress();
         $(".vtex-billing-address-form").show();
-        $('.billing-address-card').show();
-        $('.billing-form').hide();
+        if (digitalRiverBillingAddress && digitalRiverBillingAddress.isValid) {
+          $('.billing-address-card').show();
+          $('.billing-form').hide();
+        } else {
+          $('.billing-address-card').hide();
+          $('.billing-form').show();
+        }
     }
 }
 
@@ -341,6 +347,9 @@ function handleBillingPostalCode(e) {
           setBillingAddress();
         } else {
           $('.billing-address-infos').hide();
+          $('#billing-city').val('');
+          $('#billing-state').val('');
+          setBillingAddress();
           e.target.classList.add('error');
           e.target.insertAdjacentHTML('afterend', '<span class="help error">Invalid postal code.</span>');
         }
@@ -380,13 +389,21 @@ function setBillingAddress() {
         addressline2: null,
         city: null,
         state: null,
-        isSame: $('#billing-the-same').is(':checked'),
+        isSame: false,
+        isValid: false,
         orderFormId: vtexjs.checkout && vtexjs.checkout.orderForm && vtexjs.checkout.orderForm.orderFormId
     };
+
+    var isValid = true;
     $('.vtex-billing-address-form input').each((i, item) => {
         const property = item.id.split('billing-')[1].replace('-', '');
         data[property] = item.value;
+        if ($(item).attr('required') && !item.value) {
+          isValid = false;
+        }
     });
+    data.isSame = $('#billing-the-same').length == 0 ? true : $('#billing-the-same').is(':checked');
+    data.isValid = isValid;
     localStorage.setItem('DRBillingAddress', btoa(JSON.stringify(data)));
     digitalRiverBillingAddress = JSON.parse(atob(localStorage.getItem('DRBillingAddress')));
 }
@@ -401,6 +418,7 @@ function handleBillingAddressSubmit() {
     });
     if (validForm) {
         $('#drop-in').remove();
+        loadDigitalRiver(vtexjs.checkout.orderForm);
         initDigitalRiver(vtexjs.checkout.orderForm);
     }
 }
@@ -410,9 +428,6 @@ function getBillingAddress() {
     if (digitalRiverBillingAddress) {
         digitalRiverBillingAddress = digitalRiverBillingAddress ? atob(digitalRiverBillingAddress) : digitalRiverBillingAddress;
         digitalRiverBillingAddress = JSON.parse(digitalRiverBillingAddress);
-        if (digitalRiverBillingAddress.orderFormId !== vtexjs.checkout && vtexjs.checkout.orderForm && vtexjs.checkout.orderForm.orderFormId) {
-            setBillingAddress();
-        }
     } else {
         setBillingAddress();
     }
@@ -433,7 +448,7 @@ function mountBillingAddress() {
                     <header>
                         <h3>Billing Address</h3>
                     </header>
-                    <div class="billing-address-card" style="${digitalRiverBillingAddress && !digitalRiverBillingAddress.isSame && digitalRiverBillingAddress.firstname ? '' : 'display: none;'}">
+                    <div class="billing-address-card" style="${digitalRiverBillingAddress && !digitalRiverBillingAddress.isSame && digitalRiverBillingAddress.isValid ? '' : 'display: none;'}">
                         <div class="billing-address-editcard">Edit</div>
                         <div>
                             <label>First name: </label><span>${digitalRiverBillingAddress.firstname}</span>
@@ -463,7 +478,7 @@ function mountBillingAddress() {
                             <label>State: </label><span>${digitalRiverBillingAddress.state}</span>
                         </div>
                     </div>
-                    <div class="billing-address-step-one billing-form">
+                    <div class="billing-address-step-one billing-form" style="${digitalRiverBillingAddress && !digitalRiverBillingAddress.isSame && !digitalRiverBillingAddress.isValid ? 'display:block' : 'display: none;'}">
                         <div class="billing-first-name input text required">
                             <label for="billing-first-name">First name</label>
                             <input type="text" class="input-xlarge" value="${digitalRiverBillingAddress && digitalRiverBillingAddress.firstname ? digitalRiverBillingAddress.firstname : ""}" data-hj-whitelist="true" id="billing-first-name" required />
@@ -481,13 +496,13 @@ function mountBillingAddress() {
                             <input type="tel" id="billing-phone-number" value="${digitalRiverBillingAddress && digitalRiverBillingAddress.phonenumber ? digitalRiverBillingAddress.phonenumber : ""}" required />
                         </div>
                     </div>
-                    <div class="billing-address-postal-code billing-form">
+                    <div class="billing-address-postal-code billing-form" style="${digitalRiverBillingAddress && !digitalRiverBillingAddress.isSame && !digitalRiverBillingAddress.isValid ? 'display:inline-block;' : 'display: none;'}">
                         <div class="input required text billing-postcode">
                             <label for="billing-postalcode">Postal Code</label>
                             <input type="text" id="billing-postalcode" value="${digitalRiverBillingAddress && digitalRiverBillingAddress.postalcode ? digitalRiverBillingAddress.postalcode : ""}" required />
                         </div>
                     </div>
-                    <div class="billing-address-infos billing-form" style="display:none">
+                    <div class="billing-address-infos billing-form" style="${digitalRiverBillingAddress && !digitalRiverBillingAddress.isSame && !digitalRiverBillingAddress.isValid && digitalRiverBillingAddress.postalcode ? 'display:block;' : 'display: none;'}">
                         <div class="input required text">
                             <label for="billing-addressline1">Address Line 1</label>
                             <input type="text" id="billing-addressline1" value="${digitalRiverBillingAddress && digitalRiverBillingAddress.addressline1 ? digitalRiverBillingAddress.addressline1 : ""}" required />
@@ -505,7 +520,7 @@ function mountBillingAddress() {
                             <input type="text" id="billing-state" value="${digitalRiverBillingAddress && digitalRiverBillingAddress.state ? digitalRiverBillingAddress.state : ""}" required />
                         </div>
                     </div>
-                    <div class="billing-form"><button id="billing-address-submit">SAVE BILLING ADDRESS</button></div>
+                    <div class="billing-form" style="${digitalRiverBillingAddress && !digitalRiverBillingAddress.isSame && !digitalRiverBillingAddress.isValid ? 'display:block;' : 'display: none;'}"><button id="billing-address-submit">SAVE BILLING ADDRESS</button></div>
                 </div>
             </div>
         </div>`;
@@ -592,20 +607,20 @@ async function initDigitalRiver(orderForm) {
           },
         },
         billingAddress: {
-          firstName: digitalRiverBillingAddress.isSame ? orderForm.clientProfileData.firstName : digitalRiverBillingAddress.firstname,
-          lastName: digitalRiverBillingAddress.isSame ? orderForm.clientProfileData.lastName : digitalRiverBillingAddress.lastname,
-          email: digitalRiverBillingAddress.isSame ? orderForm.clientProfileData.email : digitalRiverBillingAddress.email,
+          firstName: !digitalRiverBillingAddress.isSame && digitalRiverBillingAddress.isValid ? digitalRiverBillingAddress.firstname : orderForm.clientProfileData.firstName,
+          lastName: !digitalRiverBillingAddress.isSame && digitalRiverBillingAddress.isValid ? digitalRiverBillingAddress.lastname : orderForm.clientProfileData.lastName,
+          email: !digitalRiverBillingAddress.isSame && digitalRiverBillingAddress.isValid ? digitalRiverBillingAddress.email : orderForm.clientProfileData.email,
           phoneNumber: digitalRiverBillingAddress.phonenumber || orderForm.clientProfileData.phone,
           address: {
-            line1: digitalRiverBillingAddress.isSame ? `${
+            line1: !digitalRiverBillingAddress.isSame && digitalRiverBillingAddress.isValid ? digitalRiverBillingAddress.addressline1 : `${
               orderForm.shippingData.address.number
                 ? `${orderForm.shippingData.address.number} `
                 : ''
-            }${orderForm.shippingData.address.street}` : digitalRiverBillingAddress.addressline1,
-            line2: digitalRiverBillingAddress.isSame ? orderForm.shippingData.address.complement : digitalRiverBillingAddress.addressline2,
-            city: digitalRiverBillingAddress.isSame ? orderForm.shippingData.address.city : digitalRiverBillingAddress.city,
-            state: digitalRiverBillingAddress.isSame ? orderForm.shippingData.address.state : digitalRiverBillingAddress.state,
-            postalCode: digitalRiverBillingAddress.isSame ? orderForm.shippingData.address.postalCode : digitalRiverBillingAddress.postalcode,
+            }${orderForm.shippingData.address.street}`,
+            line2: !digitalRiverBillingAddress.isSame && digitalRiverBillingAddress.isValid ? digitalRiverBillingAddress.addressline2 : orderForm.shippingData.address.complement,
+            city: !digitalRiverBillingAddress.isSame && digitalRiverBillingAddress.isValid ? digitalRiverBillingAddress.city : orderForm.shippingData.address.city,
+            state: !digitalRiverBillingAddress.isSame && digitalRiverBillingAddress.isValid ? digitalRiverBillingAddress.state : orderForm.shippingData.address.state,
+            postalCode: !digitalRiverBillingAddress.isSame && digitalRiverBillingAddress.isValid ? digitalRiverBillingAddress.postalcode : orderForm.shippingData.address.postalCode,
             country,
           },
         },
@@ -683,6 +698,7 @@ $(window).on('orderFormUpdated.vtex', function (evt, orderForm) {
     ) {
       return
     } else {
+      loadDigitalRiver(orderForm);
       initDigitalRiver(orderForm)
     }
   }
