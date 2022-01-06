@@ -243,7 +243,11 @@ export async function digitalRiverOrderTaxHandler(
           taxes: itemTaxes,
         })
       })
-
+      // Deleting checkout on DR will be comment because
+      // a requirement from DR to not do more server requests
+      // and prefer to leave checkout data on DR even if its only
+      // use for tax calculation
+      /*
       try {
         await digitalRiver.deleteCheckout({
           settings,
@@ -260,6 +264,7 @@ export async function digitalRiverOrderTaxHandler(
           message: 'DigitalRiverOrderTaxHandler-deleteCheckoutError',
         })
       }
+      */
     }
 
     setCache({ ctx, hash: hashRequest, value: taxesResponse, ttl: 'SHORT' })
