@@ -81,9 +81,11 @@ function loadCompliance(orderForm) {
     }
   }
   if ($('#compliance').length == 0) {
-    $('.container-main').append('<div id="compliance"></div>')
-    digitalRiverCompliance = digitalriver.createElement('compliance', complianceOptions);
-    digitalRiverCompliance.mount('compliance');
+    $('.container-main').append('<div id="compliance"></div>');
+    if (digitalriver) {
+      digitalRiverCompliance = digitalriver.createElement('compliance', complianceOptions);
+      digitalRiverCompliance.mount('compliance');
+    }
   } else {
     digitalRiverCompliance.update(complianceOptions);
   }
@@ -538,9 +540,11 @@ function handleBillingAddressEditClick() {
 
 function loadDigitalRiver(orderForm) {
   const locale = orderForm && orderForm.clientPreferencesData && orderForm.clientPreferencesData.locale
-    digitalriver = new DigitalRiver(digitalRiverPublicKey, {
-      locale: locale ?? 'en-US',
-    })
+    if (DigitalRiver) {
+      digitalriver = new DigitalRiver(digitalRiverPublicKey, {
+        locale: locale ?? 'en-US',
+      })
+    }
 }
 
 async function initDigitalRiver(orderForm) {
@@ -656,10 +660,13 @@ async function initDigitalRiver(orderForm) {
           loadStoredCards(checkoutId);
         },
       }
-      const dropin = digitalriver.createDropin(configuration)
-      $('#drop-in-spinner').remove();
-      $('#drop-in').children().remove();
-      dropin.mount('drop-in')
+      if (digitalriver) {
+        const dropin = digitalriver.createDropin(configuration)
+        $('#drop-in-spinner').remove();
+        $('#drop-in').children().remove();
+        dropin.mount('drop-in');
+      }
+      
     })
 }
 
