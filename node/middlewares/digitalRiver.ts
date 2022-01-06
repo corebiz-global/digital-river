@@ -510,7 +510,7 @@ export async function digitalRiverProfile(
 ) {
   const {
     cookies,
-    clients: { orderForm, apps },
+    clients: { orderForm, apps, masterdata },
     vtex: { logger },
   } = ctx
 
@@ -550,20 +550,40 @@ export async function digitalRiverProfile(
   }
 
   const sessionData: SessionFields = await getSession(ctx)
-
   const profileData = sessionData.impersonate?.profile
     ? sessionData.impersonate.profile
     : sessionData.profile
-
+  let { firstName, lastName } = profileData || {};
   const { address } = order.shippingData || {}
   const code: any = convertIso3To2((address?.country as string)?.toUpperCase())
-
+  
+  if (!firstName || !lastName) {
+    try {
+      const customers : any [] = await masterdata.searchDocuments({
+          dataEntity: 'CL',
+          fields,
+          where: `email=${profileData?.email}`,
+          pagination
+        })
+      if (customers && customers.length > 0) {
+        firstName = customers[0].firstName
+        lastName = customers[0].lastName
+      }
+    } catch(err) {
+      logger.error({
+        error: err,
+        email: profileData?.email,
+        message: 'DigitalRiverProfile-searchDocuments',
+      })
+    }
+  }
+  
   const response = {
     locale: order.clientPreferencesData?.locale
       ? order.clientPreferencesData?.locale.toLowerCase()
       : 'en_US',
-    firstName: profileData?.firstName,
-    lastName: profileData?.lastName,
+    firstName,
+    lastName,
     email: profileData?.email,
     phoneNumber: order?.clientProfileData?.phone,
     address: {
