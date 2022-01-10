@@ -40,7 +40,7 @@ const digitalRiverPaymentGroupButtonID =
   'payment-group-DigitalRiverPaymentGroup'
 
 const digitalRiverPublicKey = 'pk_test_1234567890' // NOTE! Enter your Digital River public API key here
-
+const defaultSellingEntity = 'DR_INC-ENTITY';
 const paymentErrorTitle = 'Unable to check out with selected payment method.'
 const paymentErrorDescription =
   'Please try a different payment method and try again.'
@@ -77,15 +77,13 @@ function loadCompliance(orderForm) {
     },
     compliance: {
       locale,
-      entity: 'DR_INC-ENTITY'
+      entity: defaultSellingEntity
     }
   }
   if ($('#compliance').length == 0) {
     $('.container-main').append('<div id="compliance"></div>');
-    if (digitalriver) {
-      digitalRiverCompliance = digitalriver.createElement('compliance', complianceOptions);
-      digitalRiverCompliance.mount('compliance');
-    }
+    digitalRiverCompliance = digitalriver.createElement('compliance', complianceOptions);
+    digitalRiverCompliance.mount('compliance');
   } else {
     digitalRiverCompliance.update(complianceOptions);
   }
@@ -161,7 +159,7 @@ function loadDigitalRiverScript() {
   getBillingAddress();
 }
 
-function loadStoredCards(checkoutId) {
+function loadStoredCards(checkoutId, paymentSessionId) {
   fetch(`${__RUNTIME__.rootPath || ``}/_v/api/digital-river/checkout/sources?v=${new Date().getTime()}`)
     .then((response) => {
       return response.json()
@@ -192,34 +190,64 @@ function loadStoredCards(checkoutId) {
               sources[i].creditCard.expirationYear +
               '</label></br>'
           }
+          const drCompliance = digitalriver.Compliance.getDetails(defaultSellingEntity);
+          const drComplianceDisclosures = drCompliance['disclosure'];
+          if (drComplianceDisclosures) {
+            radiosHtmls += '<div class="stored-credit-cards-disclosure">';
+            radiosHtmls += '<input type="checkbox" id="stored-credit-cards-disclosure" />';
+            radiosHtmls += '<label for="stored-credit-cards-disclosure">' + drComplianceDisclosures['confirmDisclosure']['localizedText'] + '</label></div>';
+          }
           radiosHtmls +=
-            '<div class="stored-credit-cards" style="margin-top: 16px;"><button id="submit-stored-creditCard" style="background-color: #1264a3; color: #FFF; height: 56px; border-radius: .25rem; text-align: center; border-top: none!important; border: none; font-weight: 400; padding: 1rem; width: 250px; margin-bottom: 24px;">BUY NOW WITH SAVED CARD</button></div>'
+            '<div class="stored-credit-cards" style="margin-top: 16px;"><button id="submit-stored-creditCard" disabled style="opacity: 0.5; background-color: #1264a3; color: #FFF; height: 56px; border-radius: .25rem; text-align: center; border-top: none!important; border: none; font-weight: 400; padding: 1rem; width: 250px; margin-bottom: 24px;">BUY NOW WITH SAVED CARD</button></div>'
 
           $('#drop-in').prepend(
             '<div class="DR-stored-cards">' + radiosHtmls + '</div>'
           )
+          $('#stored-credit-cards-disclosure').click(function() {
+            if ($('#stored-credit-cards-disclosure').prop('checked')) {
+              $('#submit-stored-creditCard').css('opacity', '1');
+              $('#submit-stored-creditCard').prop('disabled', false);
+            } else {
+              $('#submit-stored-creditCard').css('opacity', '0.5');
+              $('#submit-stored-creditCard').prop('disabled', true);
+            }
+          });
           $('#submit-stored-creditCard').click(function () {
-            var sourceId = $('input[name=DR-stored-cards]:checked').attr('id')
-            fetch(
-              `${
-                __RUNTIME__.rootPath || ``
-              }/_v/api/digital-river/checkout/update`,
-              {
-                method: 'POST',
-                body: JSON.stringify({
-                  checkoutId,
-                  sourceId,
-                  readyForStorage: false,
-                }),
-              }
-            )
-              .then((rawResponse) => {
-                return rawResponse.json()
-              })
-              .then(() => {
-                checkoutUpdated = true
-                clickBuyNowButton()
-              })
+            if (!$('#stored-credit-cards-disclosure').prop('checked')) {
+              return;
+            }
+            var sourceId = $('input[name=DR-stored-cards]:checked').attr('id');
+            var sourceFound = sources.find(source => source.id === sourceId);
+            if (sourceFound) {
+              digitalriver.authenticateSource({
+                  'sessionId': paymentSessionId,
+                  'sourceId': sourceId,
+                  'sourceClientSecret': sourceFound.clientSecret
+              }).then(function(data) {
+                //TODO pending what to do on status failed
+                console.log('AUTH', data)
+                fetch(
+                  `${
+                    __RUNTIME__.rootPath || ``
+                  }/_v/api/digital-river/checkout/update`,
+                  {
+                    method: 'POST',
+                    body: JSON.stringify({
+                      checkoutId,
+                      sourceId,
+                      readyForStorage: false,
+                    }),
+                  }
+                )
+                  .then((rawResponse) => {
+                    return rawResponse.json()
+                  })
+                  .then(() => { 
+                    checkoutUpdated = true
+                    clickBuyNowButton()
+                  })
+              });
+            }
           })
           $('#' + sources[0].id).click()
         }
@@ -241,6 +269,12 @@ function mountBillingAddressStyle() {
         .vtex-checkbox-billing label {
             display: inline-block;
             vertical-align: sub;
+        }
+        .stored-credit-cards-disclosure label {
+            display: inline-block;
+            vertical-align: middle;
+            width: calc(100% - 20px);
+            margin-left: 4px;
         }
         .billing-address-card {
             border: 1px solid rgba(0,0,0,.26);
@@ -540,11 +574,9 @@ function handleBillingAddressEditClick() {
 
 function loadDigitalRiver(orderForm) {
   const locale = orderForm && orderForm.clientPreferencesData && orderForm.clientPreferencesData.locale
-    if (DigitalRiver) {
-      digitalriver = new DigitalRiver(digitalRiverPublicKey, {
-        locale: locale ?? 'en-US',
-      })
-    }
+  digitalriver = new DigitalRiver(digitalRiverPublicKey, {
+    locale: locale ?? 'en-US',
+  })
 }
 
 async function initDigitalRiver(orderForm) {
@@ -604,7 +636,7 @@ async function initDigitalRiver(orderForm) {
         options: {
           flow: 'checkout',
           showComplianceSection: false,
-          showSavePaymentAgreement: true,
+          showSavePaymentAgreement: orderForm.loggedIn,
           showTermsOfSaleDisclosure: true,
           button: {
             type: 'buyNow',
@@ -657,15 +689,13 @@ async function initDigitalRiver(orderForm) {
         },
         onReady(data) {
           mountBillingAddress();
-          loadStoredCards(checkoutId);
+          loadStoredCards(checkoutId, paymentSessionId);
         },
       }
-      if (digitalriver) {
-        const dropin = digitalriver.createDropin(configuration)
-        $('#drop-in-spinner').remove();
-        $('#drop-in').children().remove();
-        dropin.mount('drop-in');
-      }
+      const dropin = digitalriver.createDropin(configuration)
+      $('#drop-in-spinner').remove();
+      $('#drop-in').children().remove();
+      dropin.mount('drop-in');
       
     })
 }
