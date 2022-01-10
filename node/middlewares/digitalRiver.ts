@@ -553,23 +553,25 @@ export async function digitalRiverProfile(
   const profileData = sessionData.impersonate?.profile
     ? sessionData.impersonate.profile
     : sessionData.profile
-  let { firstName, lastName } = profileData || {};
-  const { address } = order.shippingData || {}
+
+  let { firstName, lastName } = profileData ?? {}
+  const { address } = order?.shippingData ?? {}
   const code: any = convertIso3To2((address?.country as string)?.toUpperCase())
-  
+
   if (!firstName || !lastName) {
     try {
-      const customers : any [] = await masterdata.searchDocuments({
-          dataEntity: 'CL',
-          fields,
-          where: `email=${profileData?.email}`,
-          pagination
-        })
+      const customers: any[] = await masterdata.searchDocuments({
+        dataEntity: 'CL',
+        fields,
+        where: `email=${profileData?.email}`,
+        pagination,
+      })
+
       if (customers && customers.length > 0) {
         firstName = customers[0].firstName
         lastName = customers[0].lastName
       }
-    } catch(err) {
+    } catch (err) {
       logger.error({
         error: err,
         email: profileData?.email,
@@ -577,7 +579,7 @@ export async function digitalRiverProfile(
       })
     }
   }
-  
+
   const response = {
     locale: order.clientPreferencesData?.locale
       ? order.clientPreferencesData?.locale.toLowerCase()

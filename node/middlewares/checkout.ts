@@ -271,7 +271,7 @@ export async function digitalRiverCreateCheckout(
     taxIdResult,
   })
 
-  const dock = docks.length > 0 && docks[0];
+  const dock = docks.length > 0 && docks[0]
 
   const checkoutPayload: DRCheckoutPayload = {
     applicationId,
@@ -285,22 +285,27 @@ export async function digitalRiverCreateCheckout(
       address: {
         line1:
           dock?.address?.street ||
-          orderFormData.shippingData?.address?.street || 'Unknown',
+          orderFormData.shippingData?.address?.street ||
+          'Unknown',
         line2:
           dock?.address?.complement ||
-          orderFormData.shippingData?.address?.complement || '',
+          orderFormData.shippingData?.address?.complement ||
+          '',
         city:
           dock?.address?.city ||
-          orderFormData.shippingData?.address?.city || 'Unknown',
+          orderFormData.shippingData?.address?.city ||
+          'Unknown',
         state:
           dock?.address?.state ||
-          orderFormData.shippingData?.address?.state || '',
+          orderFormData.shippingData?.address?.state ||
+          '',
         postalCode:
           dock?.address?.postalCode ||
-          orderFormData.shippingData?.address?.postalCode || '',
-        country:
-          dock?.address?.country?.acronym ?
-            convertIso3To2(dock.address.country.acronym) : shippingCountry,
+          orderFormData.shippingData?.address?.postalCode ||
+          '',
+        country: dock?.address?.country?.acronym
+          ? convertIso3To2(dock.address.country.acronym)
+          : shippingCountry,
       },
     },
     shipTo: {
@@ -504,7 +509,6 @@ export async function digitalRiverGetSources(
   const email = profileData?.email
   let customer
 
-
   if (customerId) {
     try {
       customer = await digitalRiver.getCustomerById({
@@ -517,7 +521,7 @@ export async function digitalRiverGetSources(
           error: err,
           message: 'DigitalRiverGetSources-getCustomerById',
         })
-  
+
         throw new ResolverError({
           message: 'Get Customer failure',
           error: err,
@@ -537,7 +541,6 @@ export async function digitalRiverGetSources(
         settings,
         customerPayload,
       })
-
     } catch (err) {
       logger.error({
         error: err,
