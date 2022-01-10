@@ -148,6 +148,16 @@ interface DRCreditCardResponse {
   expirationYear: number
   lastFourDigits: string
 }
+
+interface DRWireTransferResponse {
+  accountHolder: string
+  bankName: string
+  city: string
+  country: string
+  referenceId:string
+  accountNumber:string
+  swiftCode: string
+}
 interface DRFulfillmentPayload {
   orderId: string
   items: FulfillmentItem[]
@@ -402,6 +412,7 @@ interface Source {
   clientSecret: string
   createdTime: string
   creditCard?: DRCreditCardResponse
+  wireTransfer?: DRWireTransferResponse
   currency: string
   id: string
   paymentSessionId: string

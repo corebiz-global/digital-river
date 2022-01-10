@@ -359,7 +359,7 @@ export async function authorize(
     return {
       authorizationId: orderResponse.data.id,
       code: orderResponse.status.toString(),
-      message: `Successfully created Digital River order using Checkout ID ${digitalRiverCheckoutId}. Digital River Order ID is ${
+      message: `Great, successfully created Digital River order using Checkout ID ${digitalRiverCheckoutId}. Digital River Order ID is ${
         orderResponse.data.id
       }. Digital River order state is ${orderResponse.data.state}. ${
         orderResponse.data.sources?.length
@@ -379,7 +379,7 @@ export async function authorize(
         orderResponse.data.payment?.sources[0]?.type === 'creditCard'
           ? `Card details: ${orderResponse.data.payment?.sources[0].creditCard?.brand} Exp. ${orderResponse.data.payment?.sources[0].creditCard?.expirationMonth}/${orderResponse.data.payment?.sources[0].creditCard?.expirationYear} ending in ${orderResponse.data.payment?.sources[0].creditCard?.lastFourDigits}`
           : ``
-      }`,
+      } ${orderResponse.data.payment?.sources?.length && orderResponse.data.payment?.sources[0]?.type === 'wireTransfer' ? `${JSON.stringify(orderResponse.data.payment?.sources[0].wireTransfer)} worked` : `not worked` } `,
       paymentId: content.paymentId,
       tid: orderResponse.data.id,
       status: statusUndefined ? 'undefined' : 'approved',
