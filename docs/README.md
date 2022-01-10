@@ -143,6 +143,15 @@ function loadDigitalRiverScript() {
 
   ;(e.type = 'text/javascript'),
     (e.src = 'https://js.digitalriver.com/v1/DigitalRiver.js')
+    e.addEventListener('load', () => {
+      vtexjs.checkout.getOrderForm().done(function (orderForm) {
+        loadDigitalRiver(orderForm)
+        loadCompliance(orderForm)
+        if (~window.location.hash.indexOf('#/payment') && $('.payment-group-item.active').attr('id') === digitalRiverPaymentGroupButtonID) {
+          initDigitalRiver(orderForm)
+        }
+      })
+    })
   const [t] = document.getElementsByTagName('script')
 
   t.parentNode.insertBefore(e, t)
@@ -704,22 +713,15 @@ $(document).ready(function () {
   loadDigitalRiverScript();
   if (~window.location.hash.indexOf('#/payment')) {
     if (
-      $('.payment-group-item.active').attr('id') ===
+      $('.payment-group-item.active').attr('id') !==
       digitalRiverPaymentGroupButtonID
     ) {
-      vtexjs.checkout.getOrderForm().done(function (orderForm) {
-        loadDigitalRiver(orderForm);
-        initDigitalRiver(orderForm)
-      })
-    } else {
       showBuyNowButton()
     }
   }
 })
 
 $(window).on('orderFormUpdated.vtex', function (evt, orderForm) {
-  loadDigitalRiver(orderForm);
-  loadCompliance(orderForm);
   if (
     ~window.location.hash.indexOf('#/payment') &&
     $('.payment-group-item.active').attr('id') ===
