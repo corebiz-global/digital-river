@@ -111,6 +111,16 @@ const CreditCardsPage: FC = () => {
       onReady() {},
     }
 
+    const complianceOptions = {
+      classes: {
+        base: 'DRElement'
+      },
+      compliance: {
+        locale,
+        entity: 'DR_INC-ENTITY'
+      }
+    }
+
     if (!firstName || !lastName || !email || !address) {
       setAlert({
         type: 'warning',
@@ -124,8 +134,9 @@ const CreditCardsPage: FC = () => {
       })
     } else {
       const dropin = digitalriver.createDropin(configuration)
-
       dropin.mount('drop-in')
+      const compliance = digitalriver.createElement('compliance', complianceOptions);
+      compliance.mount('compliance');
     }
   }
 
@@ -191,6 +202,7 @@ const CreditCardsPage: FC = () => {
         </div>
       ) : null}
       <div id="drop-in" />
+      <div id="compliance" />
     </div>
   )
 }
