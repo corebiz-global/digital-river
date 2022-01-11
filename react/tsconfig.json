@@ -4,13 +4,13 @@
     "moduleResolution": "node",
     "target": "es2017",
     "declaration": true,
-    "declarationDir": "/cache/build/build_vtexus_master/vtexus.connector-digital-river@0.0.1-beta.1/public/@types/vtexus.connector-digital-river/react",
+    "declarationDir": "/cache/build/build_motorolaeudevelopment2_master/motorolaeudevelopment2.connector-digital-river@0.0.1-beta.1/public/@types/motorolaeudevelopment2.connector-digital-river/react",
     "jsx": "preserve",
     "lib": ["es2017", "dom", "es2018.promise"],
     "noEmitOnError": false,
     "sourceMap": true,
     "typeRoots": [
-      "/cache/build/build_vtexus_master/vtexus.connector-digital-river@0.0.1-beta.1/src/react/node_modules/@types"
+      "/cache/build/build_motorolaeudevelopment2_master/motorolaeudevelopment2.connector-digital-river@0.0.1-beta.1/src/react/node_modules/@types"
     ],
     "types": ["node"],
     "esModuleInterop": true
