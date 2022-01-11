@@ -107,13 +107,13 @@ const Admin: FC = () => {
         updateOrderForm = true
       }
 
-      if (appId === 'vtexus.connector-digital-river' || !hasTaxConfiguration) {
+      if (appId === 'motorolaeudevelopment2.connector-digital-river' || !hasTaxConfiguration) {
         orderFormData.orderFormConfiguration.taxConfiguration = {
           url: `http://master--${account}.myvtex.com/_v/api/digital-river/checkout/order-tax`,
           authorizationHeader: settingsState.digitalRiverToken,
           allowExecutionAfterErrors: false,
           integratedAuthentication: false,
-          appId: 'vtexus.connector-digital-river',
+          appId: 'motorolaeudevelopment2.connector-digital-river',
         }
         updateOrderForm = true
       }
@@ -175,7 +175,7 @@ const Admin: FC = () => {
             }
           >
             <PageBlock>
-              {appId !== 'vtexus.connector-digital-river' &&
+              {appId !== 'motorolaeudevelopment2.connector-digital-river' &&
                 hasTaxConfiguration && (
                   <section className="pb4">
                     <Alert type="error">
@@ -322,7 +322,7 @@ const Admin: FC = () => {
                   onClick={() => handleSaveSettings(showToast)}
                   isLoading={settingsLoading}
                   disabled={
-                    (appId !== 'vtexus.connector-digital-river' &&
+                    (appId !== 'motorolaeudevelopment2.connector-digital-river' &&
                       hasTaxConfiguration) ||
                     !settingsState.digitalRiverPublicKey ||
                     !settingsState.digitalRiverToken ||
