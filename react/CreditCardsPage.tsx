@@ -121,7 +121,7 @@ const CreditCardsPage: FC = () => {
       }
     }
 
-    if (!firstName || !lastName || !email || !address) {
+    if (!firstName || !lastName || !email || !address || !phoneNumber) {
       setAlert({
         type: 'warning',
         message: (
