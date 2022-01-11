@@ -1,7 +1,7 @@
 {
   "name": "connector-digital-river",
   "vendor": "motorolaeudevelopment2",
-  "version": "0.1.0-beta.0",
+  "version": "0.1.1-beta.0",
   "title": "Digital River",
   "description": "Implementation of Digital River payment method, credit card processing, and tax calculation",
   "mustUpdateAt": "2018-01-04",
