@@ -202,7 +202,7 @@ export async function digitalRiverCreateCheckout(
         customerId,
       })
     } catch (err) {
-      if (err.response.status === 404) {
+      if (err.response.status !== 404) {
         logger.error({
           error: err,
           email,

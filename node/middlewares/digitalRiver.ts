@@ -59,7 +59,7 @@ export async function digitalRiverSetup(
       canCreateSpecs = !digitalRiverGroupFound 
     }
   } catch(err) {
-    if (err.response.status !== 404) {
+    if (err.response.status === 404) {
       canCreateSpecs = true
     } else {
       canCreateSpecs = false
