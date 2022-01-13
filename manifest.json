@@ -1,6 +1,6 @@
 {
   "name": "connector-digital-river",
-  "vendor": "vtexus",
+  "vendor": "motorolaeudevelopment2",
   "version": "1.3.1",
   "title": "Digital River",
   "description": "Implementation of Digital River payment method, credit card processing, and tax calculation",
@@ -8,7 +8,7 @@
   "categories": [],
   "billingOptions": {
     "support": {
-      "url": "https://help-tickets.vtex.com/en/support?app=vtexus.connector-digital-river"
+      "url": "https://help-tickets.vtex.com/en/support?app=motorolaeudevelopment2.connector-digital-river"
     },
     "type": "free",
     "availableCountries": [

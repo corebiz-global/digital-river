@@ -1,5 +1,5 @@
 query AppSettings($version: String) {
-  appSettings(app: "vtexus.connector-digital-river", version: $version)
+  appSettings(app: "motorolaeudevelopment2.connector-digital-river", version: $version)
     @context(provider: "vtex.apps-graphql") {
     message
   }

@@ -17,8 +17,7 @@
     "@vtex/tsconfig": "^0.5.6",
     "typescript": "3.9.7",
     "vtex.apps-graphql": "http://vtex.vtexassets.com/_v/public/typings/v1/vtex.apps-graphql@2.7.1/public/@types/vtex.apps-graphql",
-    "vtex.styleguide": "http://vtex.vtexassets.com/_v/public/typings/v1/vtex.styleguide@9.135.0/public/@types/vtex.styleguide",
-    "vtexus.connector-digital-river": "http://vtexus.vtexassets.com/_v/public/typings/v1/vtexus.connector-digital-river@0.0.1-beta.1/public/@types/vtexus.connector-digital-river"
+    "vtex.styleguide": "http://vtex.vtexassets.com/_v/public/typings/v1/vtex.styleguide@9.135.0/public/@types/vtex.styleguide"
   },
   "scripts": {
     "lint": "tsc --noEmit --pretty"
