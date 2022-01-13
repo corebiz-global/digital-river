@@ -81,8 +81,8 @@ const getCheckoutPayload = (
       serviceLevel: '',
     },
     locale: salesChannel?.CultureInfo
-        ? salesChannel?.CultureInfo.replace('-', '_')
-        : 'en_US',
+      ? salesChannel?.CultureInfo.replace('-', '_')
+      : 'en_US',
   }
 
   return checkoutPayload
@@ -104,9 +104,11 @@ export async function digitalRiverOrderTaxHandler(
 
   const hashRequest = buildHash({ checkoutRequest, settings })
   const cacheResponse = await getCache(hashRequest, ctx)
-  
-  const salesChannel = await catalog.getSalesChannel(checkoutRequest.salesChannel)
-  
+
+  const salesChannel = await catalog.getSalesChannel(
+    checkoutRequest.salesChannel
+  )
+
   let checkoutResponse
   const taxesResponse = [] as ItemTaxResponse[]
 
@@ -116,8 +118,11 @@ export async function digitalRiverOrderTaxHandler(
     !cacheResponse
   ) {
     const docks = []
+
     for (const item of checkoutRequest?.items) {
+      // eslint-disable-next-line no-await-in-loop
       let dockInfo = await logistics.getDocksById(item.dockId)
+
       if (
         !dockInfo?.address?.city ||
         !dockInfo?.address?.postalCode ||
@@ -129,6 +134,7 @@ export async function digitalRiverOrderTaxHandler(
         })
         dockInfo = ''
       }
+
       docks.push(dockInfo)
     }
 

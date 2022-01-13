@@ -50,26 +50,30 @@ export async function digitalRiverSetup(
   } = ctx
 
   let canCreateSpecs = true
+
   try {
     const specifications = await catalog.getSpecifications()
+
     if (specifications && specifications.length > 0) {
       const digitalRiverGroupFound = specifications.find(
         (spec: any) => spec.Name === DIGITAL_RIVER_GROUP_SPECS
       )
-      canCreateSpecs = !digitalRiverGroupFound 
+
+      canCreateSpecs = !digitalRiverGroupFound
     }
-  } catch(err) {
+  } catch (err) {
     if (err.response.status === 404) {
       canCreateSpecs = true
     } else {
       canCreateSpecs = false
     }
   }
-  
+
   if (canCreateSpecs) {
-    let digitalRiverGroup: any = await catalog.createSpecification(
+    const digitalRiverGroup: any = await catalog.createSpecification(
       DIGITAL_RIVER_GROUP_SPECS
     )
+
     await catalog.createSpecificationField(
       digitalRiverGroup.Id,
       'ECCN',
