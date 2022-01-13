@@ -110,6 +110,7 @@ const CreditCardsPage: FC = () => {
       },
       onReady() {},
     }
+
     const complianceOptions = {
       classes: {
         base: 'DRElement',
@@ -135,7 +136,7 @@ const CreditCardsPage: FC = () => {
       const dropin = digitalriver.createDropin(configuration)
 
       dropin.mount('drop-in')
-      
+
       const compliance = digitalriver.createElement(
         'compliance',
         complianceOptions
