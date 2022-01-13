@@ -61,8 +61,8 @@ interface CheckoutShippingChoice {
 }
 interface CheckoutShipTo {
   address: CheckoutAddress
-  name: string
-  phone: string
+  name?: string
+  phone?: string
 }
 interface Discount {
   amountOff?: number

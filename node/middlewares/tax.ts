@@ -13,7 +13,7 @@ const getAppId = (): string => {
 
 const getCheckoutPayload = (
   checkoutDR: CheckoutRequest,
-  orderForm: any,
+  salesChannel: any,
   taxInclusive: boolean,
   docks: any[]
 ): DRCheckoutPayload => {
@@ -60,18 +60,12 @@ const getCheckoutPayload = (
   }
 
   const checkoutPayload: DRCheckoutPayload = {
-    currency: orderForm?.storePreferencesData?.currencyCode ?? 'USD',
+    currency: salesChannel?.CurrencyCode ?? 'USD',
     items,
     applicationId,
     taxInclusive,
-    email: orderForm.clientProfileData?.email ?? '',
+    email: checkoutDR.clientData?.email ?? '',
     shipTo: {
-      name:
-        orderForm.clientProfileData?.firstName &&
-        orderForm.clientProfileData?.lastName
-          ? `${orderForm.clientProfileData?.firstName} ${orderForm.clientProfileData?.lastName}`
-          : '',
-      phone: orderForm.clientProfileData?.phone || '',
       address: {
         line1: checkoutDR.shippingDestination?.street || 'Unknown',
         line2: checkoutDR.shippingDestination?.complement || '',
@@ -86,9 +80,9 @@ const getCheckoutPayload = (
       description: '',
       serviceLevel: '',
     },
-    locale: orderForm.clientPreferencesData?.locale
-      ? orderForm.clientPreferencesData?.locale.replace('-', '_')
-      : 'en_US',
+    locale: salesChannel?.CultureInfo
+        ? salesChannel?.CultureInfo.replace('-', '_')
+        : 'en_US',
   }
 
   return checkoutPayload
@@ -99,7 +93,7 @@ export async function digitalRiverOrderTaxHandler(
   next: () => Promise<unknown>
 ) {
   const {
-    clients: { apps, orderForm, digitalRiver, logistics },
+    clients: { apps, digitalRiver, logistics, catalog },
     req,
     vtex: { logger },
   } = ctx
@@ -110,53 +104,37 @@ export async function digitalRiverOrderTaxHandler(
 
   const hashRequest = buildHash({ checkoutRequest, settings })
   const cacheResponse = await getCache(hashRequest, ctx)
-
-  const orderFormData = await orderForm.getOrderForm(
-    checkoutRequest.orderFormId,
-    settings.vtexAppKey,
-    settings.vtexAppToken
-  )
-
+  
+  const salesChannel = await catalog.getSalesChannel(checkoutRequest.salesChannel)
+  
   let checkoutResponse
   const taxesResponse = [] as ItemTaxResponse[]
 
   if (
-    orderFormData?.items.length > 0 &&
+    checkoutRequest?.items.length > 0 &&
     !settings.isTaxInclusive &&
     !cacheResponse
   ) {
     const docks = []
-
-    for (const logisticsInfo of orderFormData?.shippingData?.logisticsInfo) {
-      const { selectedSla, slas } = logisticsInfo
-
-      if (slas && selectedSla) {
-        const [{ dockId }] =
-          slas.find(({ name }: { name: string }) => name === selectedSla)
-            ?.deliveryIds ?? {}
-
-        // eslint-disable-next-line no-await-in-loop
-        let dockInfo = await logistics.getDocksById(dockId)
-
-        if (
-          !dockInfo?.address?.city ||
-          !dockInfo?.address?.postalCode ||
-          !dockInfo?.address?.country?.acronym
-        ) {
-          logger.warn({
-            message: 'DigitalRiverOrderTaxHandler-getDocksById',
-            dockInfo,
-          })
-          dockInfo = ''
-        }
-
-        docks.push(dockInfo)
+    for (const item of checkoutRequest?.items) {
+      let dockInfo = await logistics.getDocksById(item.dockId)
+      if (
+        !dockInfo?.address?.city ||
+        !dockInfo?.address?.postalCode ||
+        !dockInfo?.address?.country?.acronym
+      ) {
+        logger.warn({
+          message: 'DigitalRiverOrderTaxHandler-getDocksById',
+          dockInfo,
+        })
+        dockInfo = ''
       }
+      docks.push(dockInfo)
     }
 
     const checkoutPayload = getCheckoutPayload(
       checkoutRequest,
-      orderFormData,
+      salesChannel,
       settings.isTaxInclusive,
       docks
     )
