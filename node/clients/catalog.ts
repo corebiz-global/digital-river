@@ -96,6 +96,11 @@ export default class CatalogClient extends JanusClient {
       metric: 'catalogClient-getProductSpecifications',
     })
 
+  public getSalesChannel = (salesChannel: string) =>
+    this.http.get(this.routes.salesChannelById(salesChannel), {
+      metric: 'catalogClient-getSalesChannel',
+    })
+
   private get routes() {
     return {
       root: () => '/api',
@@ -115,6 +120,8 @@ export default class CatalogClient extends JanusClient {
         `${this.routes.root()}/catalog/pvt/product/${productId}`,
       productSpecifications: (productId: number) =>
         `${this.routes.root()}/catalog_system/pvt/products/${productId}/specification`,
+      salesChannelById: (salesChannel: string) =>
+        `${this.routes.root()}/catalog_system/pub/saleschannel/${salesChannel}`,
     }
   }
 }

@@ -49,31 +49,44 @@ export async function digitalRiverSetup(
     clients: { catalog, masterdata },
   } = ctx
 
-  const specifications = await catalog.getSpecifications()
+  let canCreateSpecs = true
 
-  if (specifications && specifications.length > 0) {
-    let digitalRiverGroup = specifications.find(
-      (spec: any) => spec.Name === DIGITAL_RIVER_GROUP_SPECS
+  try {
+    const specifications = await catalog.getSpecifications()
+
+    if (specifications && specifications.length > 0) {
+      const digitalRiverGroupFound = specifications.find(
+        (spec: any) => spec.Name === DIGITAL_RIVER_GROUP_SPECS
+      )
+
+      canCreateSpecs = !digitalRiverGroupFound
+    }
+  } catch (err) {
+    if (err.response.status === 404) {
+      canCreateSpecs = true
+    } else {
+      canCreateSpecs = false
+    }
+  }
+
+  if (canCreateSpecs) {
+    const digitalRiverGroup: any = await catalog.createSpecification(
+      DIGITAL_RIVER_GROUP_SPECS
     )
 
-    if (!digitalRiverGroup) {
-      digitalRiverGroup = await catalog.createSpecification(
-        DIGITAL_RIVER_GROUP_SPECS
-      )
-      await catalog.createSpecificationField(
-        digitalRiverGroup.Id,
-        'ECCN',
-        SPECIFICATION_FIELD_TEXT
-      )
-      const field = await catalog.createSpecificationField(
-        digitalRiverGroup.Id,
-        'Country of origin',
-        SPECIFICATION_FIELD_COMBO
-      )
+    await catalog.createSpecificationField(
+      digitalRiverGroup.Id,
+      'ECCN',
+      SPECIFICATION_FIELD_TEXT
+    )
+    const field = await catalog.createSpecificationField(
+      digitalRiverGroup.Id,
+      'Country of origin',
+      SPECIFICATION_FIELD_COMBO
+    )
 
-      for (let i = 0; i < countries.length; i++) {
-        catalog.createSpecificationValue(field.Id, countries[i], i + 1)
-      }
+    for (let i = 0; i < countries.length; i++) {
+      catalog.createSpecificationValue(field.Id, countries[i], i + 1)
     }
   }
 
@@ -510,7 +523,7 @@ export async function digitalRiverProfile(
 ) {
   const {
     cookies,
-    clients: { orderForm, apps },
+    clients: { orderForm, apps, masterdata },
     vtex: { logger },
   } = ctx
 
@@ -550,22 +563,46 @@ export async function digitalRiverProfile(
   }
 
   const sessionData: SessionFields = await getSession(ctx)
-
   const profileData = sessionData.impersonate?.profile
     ? sessionData.impersonate.profile
     : sessionData.profile
 
-  const { address } = order.shippingData || {}
+  let { firstName, lastName } = profileData ?? {}
+  let { phone } = order?.clientProfileData ?? {}
+  const { address } = order?.shippingData ?? {}
   const code: any = convertIso3To2((address?.country as string)?.toUpperCase())
+
+  if (!firstName || !lastName || !phone) {
+    try {
+      const customers: any[] = await masterdata.searchDocuments({
+        dataEntity: 'CL',
+        fields,
+        where: `email=${profileData?.email}`,
+        pagination,
+      })
+
+      if (customers && customers.length > 0) {
+        firstName = customers[0].firstName
+        lastName = customers[0].lastName
+        phone = customers[0].homePhone || customers[0].phone
+      }
+    } catch (err) {
+      logger.error({
+        error: err,
+        email: profileData?.email,
+        message: 'DigitalRiverProfile-searchDocuments',
+      })
+    }
+  }
 
   const response = {
     locale: order.clientPreferencesData?.locale
-      ? order.clientPreferencesData?.locale.toLowerCase()
+      ? order.clientPreferencesData?.locale
       : 'en_US',
-    firstName: profileData?.firstName,
-    lastName: profileData?.lastName,
+    firstName,
+    lastName,
     email: profileData?.email,
-    phoneNumber: order?.clientProfileData?.phone,
+    phoneNumber: phone,
     address: {
       line1:
         order.shippingData?.address &&

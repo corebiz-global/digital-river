@@ -33,14 +33,14 @@ This app integrates Digital River with VTEX checkout, allowing shoppers to inter
 5. Add the following JavaScript to your `checkout6-custom.js` file, which is typically edited by accessing the **Store Setup** section in your admin sidebar and clicking `Checkout`, then clicking the blue gear icon and then the `Code` tab:
 
 ```js
-// DIGITAL RIVER Version 2.0.0
+// DIGITAL RIVER Version 2.1.0
 let checkoutUpdated = false
 const digitalRiverPaymentGroupClass = '.DigitalRiverPaymentGroup'
 const digitalRiverPaymentGroupButtonID =
   'payment-group-DigitalRiverPaymentGroup'
 
 const digitalRiverPublicKey = 'pk_test_1234567890' // NOTE! Enter your Digital River public API key here
-
+const defaultSellingEntity = 'DR_INC-ENTITY'
 const paymentErrorTitle = 'Unable to check out with selected payment method.'
 const paymentErrorDescription =
   'Please try a different payment method and try again.'
@@ -54,7 +54,7 @@ const genericErrorDescription =
   'Please check your shipping information and try again.'
 let digitalriver
 let digitalRiverCompliance
-
+let digitalRiverBillingAddress
 async function getCountryCode(country) {
   return await fetch(
     `${
@@ -70,22 +70,28 @@ async function getCountryCode(country) {
 }
 
 function loadCompliance(orderForm) {
-  const locale = orderForm && orderForm.clientPreferencesData && orderForm.clientPreferencesData.locale;
+  const locale =
+    orderForm &&
+    orderForm.clientPreferencesData &&
+    orderForm.clientPreferencesData.locale
   const complianceOptions = {
     classes: {
-      base: 'DRElement'
+      base: 'DRElement',
     },
     compliance: {
       locale,
-      entity: 'DR_INC-ENTITY'
-    }
+      entity: defaultSellingEntity,
+    },
   }
   if ($('#compliance').length == 0) {
     $('.container-main').append('<div id="compliance"></div>')
-    digitalRiverCompliance = digitalriver.createElement('compliance', complianceOptions);
-    digitalRiverCompliance.mount('compliance');
+    digitalRiverCompliance = digitalriver.createElement(
+      'compliance',
+      complianceOptions
+    )
+    digitalRiverCompliance.mount('compliance')
   } else {
-    digitalRiverCompliance.update(complianceOptions);
+    digitalRiverCompliance.update(complianceOptions)
   }
 }
 
@@ -94,7 +100,7 @@ function renderErrorMessage(title, body, append = false) {
     $(digitalRiverPaymentGroupClass).html(
       `<div><div class='DR-card'><div class='DR-collapse DR-show'><h5 class='DR-error-message'>${title}</h5><div><p>${body}</p></div></div></div></div>`
     )
-  
+
     return
   }
 
@@ -143,6 +149,19 @@ function loadDigitalRiverScript() {
 
   ;(e.type = 'text/javascript'),
     (e.src = 'https://js.digitalriver.com/v1/DigitalRiver.js')
+  e.addEventListener('load', () => {
+    vtexjs.checkout.getOrderForm().done(function (orderForm) {
+      loadDigitalRiver(orderForm)
+      loadCompliance(orderForm)
+      if (
+        ~window.location.hash.indexOf('#/payment') &&
+        $('.payment-group-item.active').attr('id') ===
+          digitalRiverPaymentGroupButtonID
+      ) {
+        initDigitalRiver(orderForm)
+      }
+    })
+  })
   const [t] = document.getElementsByTagName('script')
 
   t.parentNode.insertBefore(e, t)
@@ -155,10 +174,16 @@ function loadDigitalRiverScript() {
   const [u] = document.getElementsByTagName('link')
 
   u.parentNode.insertBefore(f, u)
+  mountBillingAddressStyle()
+  getBillingAddress()
 }
 
-function loadStoredCards(checkoutId) {
-  fetch(`${__RUNTIME__.rootPath || ``}/_v/api/digital-river/checkout/sources?v=${new Date().getTime()}`)
+function loadStoredCards(checkoutId, paymentSessionId) {
+  fetch(
+    `${
+      __RUNTIME__.rootPath || ``
+    }/_v/api/digital-river/checkout/sources?v=${new Date().getTime()}`
+  )
     .then((response) => {
       return response.json()
     })
@@ -188,34 +213,72 @@ function loadStoredCards(checkoutId) {
               sources[i].creditCard.expirationYear +
               '</label></br>'
           }
+          const drCompliance = digitalriver.Compliance.getDetails(
+            defaultSellingEntity
+          )
+          const drComplianceDisclosures = drCompliance['disclosure']
+          if (drComplianceDisclosures) {
+            radiosHtmls += '<div class="stored-credit-cards-disclosure">'
+            radiosHtmls +=
+              '<input type="checkbox" id="stored-credit-cards-disclosure" />'
+            radiosHtmls +=
+              '<label for="stored-credit-cards-disclosure">' +
+              drComplianceDisclosures['confirmDisclosure']['localizedText'] +
+              '</label></div>'
+          }
           radiosHtmls +=
-            '<div class="stored-credit-cards" style="margin-top: 16px;"><button id="submit-stored-creditCard" style="background-color: #1264a3; color: #FFF; height: 56px; border-radius: .25rem; text-align: center; border-top: none!important; border: none; font-weight: 400; padding: 1rem; width: 250px; margin-bottom: 24px;">BUY NOW WITH SAVED CARD</button></div>'
+            '<div class="stored-credit-cards" style="margin-top: 16px;"><button id="submit-stored-creditCard" disabled style="opacity: 0.5; background-color: #1264a3; color: #FFF; height: 56px; border-radius: .25rem; text-align: center; border-top: none!important; border: none; font-weight: 400; padding: 1rem; width: 250px; margin-bottom: 24px;">BUY NOW WITH SAVED CARD</button></div>'
 
           $('#drop-in').prepend(
             '<div class="DR-stored-cards">' + radiosHtmls + '</div>'
           )
+          $('#stored-credit-cards-disclosure').click(function () {
+            if ($('#stored-credit-cards-disclosure').prop('checked')) {
+              $('#submit-stored-creditCard').css('opacity', '1')
+              $('#submit-stored-creditCard').prop('disabled', false)
+            } else {
+              $('#submit-stored-creditCard').css('opacity', '0.5')
+              $('#submit-stored-creditCard').prop('disabled', true)
+            }
+          })
           $('#submit-stored-creditCard').click(function () {
+            if (!$('#stored-credit-cards-disclosure').prop('checked')) {
+              return
+            }
             var sourceId = $('input[name=DR-stored-cards]:checked').attr('id')
-            fetch(
-              `${
-                __RUNTIME__.rootPath || ``
-              }/_v/api/digital-river/checkout/update`,
-              {
-                method: 'POST',
-                body: JSON.stringify({
-                  checkoutId,
-                  sourceId,
-                  readyForStorage: false,
-                }),
-              }
-            )
-              .then((rawResponse) => {
-                return rawResponse.json()
-              })
-              .then(() => {
-                checkoutUpdated = true
-                clickBuyNowButton()
-              })
+            var sourceFound = sources.find((source) => source.id === sourceId)
+            if (sourceFound) {
+              digitalriver
+                .authenticateSource({
+                  sessionId: paymentSessionId,
+                  sourceId: sourceId,
+                  sourceClientSecret: sourceFound.clientSecret,
+                })
+                .then(function (data) {
+                  //TODO pending what to do on status failed
+                  console.log('AUTH', data)
+                  fetch(
+                    `${
+                      __RUNTIME__.rootPath || ``
+                    }/_v/api/digital-river/checkout/update`,
+                    {
+                      method: 'POST',
+                      body: JSON.stringify({
+                        checkoutId,
+                        sourceId,
+                        readyForStorage: false,
+                      }),
+                    }
+                  )
+                    .then((rawResponse) => {
+                      return rawResponse.json()
+                    })
+                    .then(() => {
+                      checkoutUpdated = true
+                      clickBuyNowButton()
+                    })
+                })
+            }
           })
           $('#' + sources[0].id).click()
         }
@@ -223,11 +286,455 @@ function loadStoredCards(checkoutId) {
     })
 }
 
-function loadDigitalRiver(orderForm) {
-  const locale = orderForm && orderForm.clientPreferencesData && orderForm.clientPreferencesData.locale
-    digitalriver = new DigitalRiver(digitalRiverPublicKey, {
-      locale: locale ?? 'en-US',
+function mountBillingAddressStyle() {
+  var css = `
+        .DR-billing-address {
+            margin: 16px 0px;
+        }
+        .DR-billing-address .input {
+            vertical-align: top;
+        }
+        .vtex-billing-address-form h3 {
+            display: block !important;
+        }
+        .vtex-checkbox-billing label {
+            display: inline-block;
+            vertical-align: sub;
+        }
+        .stored-credit-cards-disclosure label {
+            display: inline-block;
+            vertical-align: middle;
+            width: calc(100% - 20px);
+            margin-left: 4px;
+        }
+        .billing-address-card {
+            border: 1px solid rgba(0,0,0,.26);
+            padding: 16px;
+        }
+        .billing-address-editcard {
+            display: block !important;
+            text-align: right;
+            width: 100% !important;
+            font-size: 14px;
+            text-decoration: underline;
+            color: #1a73e8;
+            margin-bottom: 4px;
+            cursor: pointer;
+        }
+        .billing-address-card label {
+            display: inline-block;
+            margin-right: 4px;
+        }
+        .billing-address-card div {
+            display: inline-block;
+            width: 48%;
+        }
+        .billing-form {
+            display: none;
+        }
+        #billing-address-submit {
+            background-color: #1264a3;
+            color: #FFF;
+            height: 56px;
+            border-radius: .25rem;
+            text-align: center;
+            border-top: none!important;
+            border: none;
+            font-weight: 400;
+            padding: 1rem;
+            width: 250px;
+            margin-bottom: 24px;
+            margin-top: 24px;
+        }
+        .billing-first-name,
+        .billing-last-name,
+        .billing-address-infos div,
+        .billing-address-postalcode,
+        .billing-email,
+        .billing-phone-number,
+        .billing-postalcode,
+        .billing-address-postal-code {
+            width : 48% !important;
+            margin: 0 !important;
+            display: inline-block;
+            vertical-align: top;
+        }
+        @media (max-width: 768px) {
+            .billing-first-name,
+            .billing-last-name,
+            .billing-address-postalcode,
+            .billing-address-infos div,
+            .billing-email,
+            .billing-phone-number,
+            .billing-postalcode {
+                width: 100% !important;
+            }
+        }
+    `
+  var head = document.head || document.getElementsByTagName('head')[0]
+  var style = document.createElement('style')
+
+  head.appendChild(style)
+  style.appendChild(document.createTextNode(css))
+}
+
+function handleBillingSameClick(sameElement) {
+  if (sameElement.checked) {
+    setBillingAddress()
+    $('.vtex-billing-address-form').hide()
+    $('.billing-address-card').hide()
+    $('.billing-form').hide()
+  } else {
+    setBillingAddress()
+    $('.vtex-billing-address-form').show()
+    if (digitalRiverBillingAddress && digitalRiverBillingAddress.isValid) {
+      $('.billing-address-card').show()
+      $('.billing-form').hide()
+    } else {
+      $('.billing-address-card').hide()
+      $('.billing-form').show()
+    }
+  }
+}
+
+function handleBillingPostalCode(e) {
+  const value = e.target.value
+  if (!value) {
+    $('.billing-address-infos').hide()
+    return
+  }
+  const countryCode = vtexjs.checkout.orderForm.storePreferencesData.countryCode
+  const url = `${window.location.origin}/api/checkout/pub/postal-code/${countryCode}/${value}`
+  fetch(url)
+    .then((resp) => resp.json())
+    .then(async (data) => {
+      if (data?.city) {
+        $('#billing-city').val(data?.city)
+        $('#billing-state').val(data?.state)
+        await $('.billing-address-infos').show()
+        setBillingAddress()
+      } else {
+        $('.billing-address-infos').hide()
+        $('#billing-city').val('')
+        $('#billing-state').val('')
+        setBillingAddress()
+        e.target.classList.add('error')
+        e.target.insertAdjacentHTML(
+          'afterend',
+          '<span class="help error">Invalid postal code.</span>'
+        )
+      }
     })
+    .catch((error) => {
+      console.error(error)
+    })
+}
+
+function handleBillingAddressInputs(target) {
+  if ($('.DR-billing-address').length == 0) {
+    return
+  }
+  if (target.hasAttribute('required')) {
+    if (target.value) {
+      target.classList.remove('error')
+      $(target).parent('div').find('span').remove()
+      setBillingAddress()
+    } else {
+      if (target.classList.contains('error')) return
+      target.classList.add('error')
+      target.insertAdjacentHTML(
+        'afterend',
+        '<span class="help error">This field is required.</span>'
+      )
+      setBillingAddress()
+    }
+  }
+}
+
+function setBillingAddress() {
+  let data = {
+    firstname: null,
+    lastname: null,
+    email: null,
+    phonenumber: null,
+    postalcode: null,
+    addressline1: null,
+    addressline2: null,
+    city: null,
+    state: null,
+    isSame: false,
+    isValid: false,
+    orderFormId:
+      vtexjs.checkout &&
+      vtexjs.checkout.orderForm &&
+      vtexjs.checkout.orderForm.orderFormId,
+  }
+
+  var isValid = true
+  $('.vtex-billing-address-form input').each((i, item) => {
+    const property = item.id.split('billing-')[1].replace('-', '')
+    data[property] = item.value
+    if ($(item).attr('required') && !item.value) {
+      isValid = false
+    }
+  })
+  data.isSame =
+    $('#billing-the-same').length == 0
+      ? true
+      : $('#billing-the-same').is(':checked')
+  data.isValid = isValid
+  localStorage.setItem('DRBillingAddress', btoa(JSON.stringify(data)))
+  digitalRiverBillingAddress = JSON.parse(
+    atob(localStorage.getItem('DRBillingAddress'))
+  )
+}
+
+function handleBillingAddressSubmit() {
+  var validForm = true
+  $('.vtex-billing-address-form input[required]').each((i, item) => {
+    if (!item.value) {
+      validForm = false
+    }
+    handleBillingAddressInputs(item)
+  })
+  if (validForm) {
+    $('#drop-in').remove()
+    loadDigitalRiver(vtexjs.checkout.orderForm)
+    initDigitalRiver(vtexjs.checkout.orderForm)
+  }
+}
+
+function getBillingAddress() {
+  digitalRiverBillingAddress = localStorage.getItem('DRBillingAddress')
+  if (digitalRiverBillingAddress) {
+    digitalRiverBillingAddress = digitalRiverBillingAddress
+      ? atob(digitalRiverBillingAddress)
+      : digitalRiverBillingAddress
+    digitalRiverBillingAddress = JSON.parse(digitalRiverBillingAddress)
+  } else {
+    setBillingAddress()
+  }
+}
+
+function mountBillingAddress() {
+  if ($('.DR-billing-address').length > 0) {
+    return
+  }
+  var billingAddress = `
+        <div class="DR-billing-address">
+            <div class="vtex-billing-address">
+                <div class="vtex-checkbox-billing">
+                    <input type="checkbox" id="billing-the-same" onclick="handleBillingSameClick(this)" ${
+                      digitalRiverBillingAddress &&
+                      digitalRiverBillingAddress.isSame
+                        ? 'checked'
+                        : ''
+                    } />
+                    <label for="billing-the-same"><span><strong>My billing and shipping information are the same.</strong></span></label>
+                </div>
+                <div class="vtex-billing-address-form" style="${
+                  digitalRiverBillingAddress &&
+                  digitalRiverBillingAddress.isSame
+                    ? 'display: none;'
+                    : ''
+                }">
+                    <header>
+                        <h3>Billing Address</h3>
+                    </header>
+                    <div class="billing-address-card" style="${
+                      digitalRiverBillingAddress &&
+                      !digitalRiverBillingAddress.isSame &&
+                      digitalRiverBillingAddress.isValid
+                        ? ''
+                        : 'display: none;'
+                    }">
+                        <div class="billing-address-editcard">Edit</div>
+                        <div>
+                            <label>First name: </label><span>${
+                              digitalRiverBillingAddress.firstname
+                            }</span>
+                        </div>
+                        <div>
+                            <label>Last name: </label><span>${
+                              digitalRiverBillingAddress.lastname
+                            }</span>
+                        </div>
+                        <div>
+                            <label>Email: </label><span>${
+                              digitalRiverBillingAddress.email
+                            }</span>
+                        </div>
+                        <div>
+                            <label>Phone number: </label><span>${
+                              digitalRiverBillingAddress.phonenumber
+                            }</span>
+                        </div>
+                        <div>
+                            <label>Postal Code: </label><span>${
+                              digitalRiverBillingAddress.postalcode
+                            }</span>
+                        </div>
+                        <div>
+                            <label>Address Line 1: </label><span>${
+                              digitalRiverBillingAddress.addressline1
+                            }</span>
+                        </div>
+                        <div>
+                            <label>Address Line 2: </label><span>${
+                              digitalRiverBillingAddress.addressline2
+                            }</span>
+                        </div>
+                        <div>
+                            <label>City: </label><span>${
+                              digitalRiverBillingAddress.city
+                            }</span>
+                        </div>
+                        <div>
+                            <label>State: </label><span>${
+                              digitalRiverBillingAddress.state
+                            }</span>
+                        </div>
+                    </div>
+                    <div class="billing-address-step-one billing-form" style="${
+                      digitalRiverBillingAddress &&
+                      !digitalRiverBillingAddress.isSame &&
+                      !digitalRiverBillingAddress.isValid
+                        ? 'display:block'
+                        : 'display: none;'
+                    }">
+                        <div class="billing-first-name input text required">
+                            <label for="billing-first-name">First name</label>
+                            <input type="text" class="input-xlarge" value="${
+                              digitalRiverBillingAddress &&
+                              digitalRiverBillingAddress.firstname
+                                ? digitalRiverBillingAddress.firstname
+                                : ''
+                            }" data-hj-whitelist="true" id="billing-first-name" required />
+                        </div>
+                        <div class="billing-last-name input text required">
+                            <label for="billing-last-name"> Last name </label>
+                            <input type="text" id="billing-last-name" value="${
+                              digitalRiverBillingAddress &&
+                              digitalRiverBillingAddress.lastname
+                                ? digitalRiverBillingAddress.lastname
+                                : ''
+                            }" required />
+                        </div>
+                        <div class="billing-email input text required">
+                            <label for="billing-email"> Email </label>
+                            <input type="email" id="billing-email" value="${
+                              digitalRiverBillingAddress &&
+                              digitalRiverBillingAddress.email
+                                ? digitalRiverBillingAddress.email
+                                : ''
+                            }" required />
+                        </div>
+                        <div  class="billing-phone-number input text required">
+                            <label for="billing-last-name"> Phone number </label>
+                            <input type="tel" id="billing-phone-number" value="${
+                              digitalRiverBillingAddress &&
+                              digitalRiverBillingAddress.phonenumber
+                                ? digitalRiverBillingAddress.phonenumber
+                                : ''
+                            }" required />
+                        </div>
+                    </div>
+                    <div class="billing-address-postal-code billing-form" style="${
+                      digitalRiverBillingAddress &&
+                      !digitalRiverBillingAddress.isSame &&
+                      !digitalRiverBillingAddress.isValid
+                        ? 'display:inline-block;'
+                        : 'display: none;'
+                    }">
+                        <div class="input required text billing-postcode">
+                            <label for="billing-postalcode">Postal Code</label>
+                            <input type="text" id="billing-postalcode" value="${
+                              digitalRiverBillingAddress &&
+                              digitalRiverBillingAddress.postalcode
+                                ? digitalRiverBillingAddress.postalcode
+                                : ''
+                            }" required />
+                        </div>
+                    </div>
+                    <div class="billing-address-infos billing-form" style="${
+                      digitalRiverBillingAddress &&
+                      !digitalRiverBillingAddress.isSame &&
+                      !digitalRiverBillingAddress.isValid &&
+                      digitalRiverBillingAddress.postalcode
+                        ? 'display:block;'
+                        : 'display: none;'
+                    }">
+                        <div class="input required text">
+                            <label for="billing-addressline1">Address Line 1</label>
+                            <input type="text" id="billing-addressline1" value="${
+                              digitalRiverBillingAddress &&
+                              digitalRiverBillingAddress.addressline1
+                                ? digitalRiverBillingAddress.addressline1
+                                : ''
+                            }" required />
+                        </div>
+                        <div class="input required text">
+                            <label for="billing-addressline2">Address Line 2</label>
+                            <input type="text" id="billing-addressline2" value="${
+                              digitalRiverBillingAddress &&
+                              digitalRiverBillingAddress.addressline2
+                                ? digitalRiverBillingAddress.addressline2
+                                : ''
+                            }" />
+                        </div>
+                        <div class="input text required">
+                            <label for="billing-city">City</label>
+                            <input type="text" id="billing-city" value="${
+                              digitalRiverBillingAddress &&
+                              digitalRiverBillingAddress.city
+                                ? digitalRiverBillingAddress.city
+                                : ''
+                            }" required />
+                        </div>
+                        <div class="input text required">
+                            <label for="billing-state">State</label>
+                            <input type="text" id="billing-state" value="${
+                              digitalRiverBillingAddress &&
+                              digitalRiverBillingAddress.state
+                                ? digitalRiverBillingAddress.state
+                                : ''
+                            }" required />
+                        </div>
+                    </div>
+                    <div class="billing-form" style="${
+                      digitalRiverBillingAddress &&
+                      !digitalRiverBillingAddress.isSame &&
+                      !digitalRiverBillingAddress.isValid
+                        ? 'display:block;'
+                        : 'display: none;'
+                    }"><button id="billing-address-submit">SAVE BILLING ADDRESS</button></div>
+                </div>
+            </div>
+        </div>`
+  $('#drop-in').prepend(billingAddress)
+  $('#billing-postalcode').on('change', (e) => handleBillingPostalCode(e))
+  $('.vtex-billing-address-form input').on('blur', (e) =>
+    handleBillingAddressInputs(e.target)
+  )
+  $('#billing-address-submit').on('click', () => handleBillingAddressSubmit())
+  $('.billing-address-editcard').on('click', () =>
+    handleBillingAddressEditClick()
+  )
+}
+
+function handleBillingAddressEditClick() {
+  $('.billing-form').show()
+  $('.billing-address-card').hide()
+}
+
+function loadDigitalRiver(orderForm) {
+  const locale =
+    orderForm &&
+    orderForm.clientPreferencesData &&
+    orderForm.clientPreferencesData.locale
+  digitalriver = new DigitalRiver(digitalRiverPublicKey, {
+    locale: locale ?? 'en-US',
+  })
 }
 
 async function initDigitalRiver(orderForm) {
@@ -256,13 +763,22 @@ async function initDigitalRiver(orderForm) {
 
   fetch(`${__RUNTIME__.rootPath || ``}/_v/api/digital-river/checkout/create`, {
     method: 'POST',
-    body: JSON.stringify({ orderFormId: orderForm.orderFormId, taxIdPayload: { // NOTE: The taxIdPayload field is optional
-      taxId: {
-        "type": "uk",
-        "value": "GB999999999"
-      },
-      customerType: "business"
-    }}),
+    body: JSON.stringify({
+      orderFormId: orderForm.orderFormId,
+    }),
+    /* 
+      // Optionally you may include a taxIdPayload object in addition to the orderFormId, example:
+      body: JSON.stringify({
+        orderFormId: orderForm.orderFormId,
+        taxIdPayload: {
+          taxId: {
+            type: 'uk',
+            value: 'GB999999999',
+          },
+          customerType: 'business',
+        },
+      }),
+    */
   })
     .then((response) => {
       return response.json()
@@ -287,27 +803,61 @@ async function initDigitalRiver(orderForm) {
         options: {
           flow: 'checkout',
           showComplianceSection: false,
-          showSavePaymentAgreement: true,
+          showSavePaymentAgreement: orderForm.loggedIn,
           showTermsOfSaleDisclosure: true,
           button: {
             type: 'buyNow',
           },
         },
         billingAddress: {
-          firstName: orderForm.clientProfileData.firstName,
-          lastName: orderForm.clientProfileData.lastName,
-          email: orderForm.clientProfileData.email,
-          phoneNumber: orderForm.clientProfileData.phone,
+          firstName:
+            !digitalRiverBillingAddress.isSame &&
+            digitalRiverBillingAddress.isValid
+              ? digitalRiverBillingAddress.firstname
+              : orderForm.clientProfileData.firstName,
+          lastName:
+            !digitalRiverBillingAddress.isSame &&
+            digitalRiverBillingAddress.isValid
+              ? digitalRiverBillingAddress.lastname
+              : orderForm.clientProfileData.lastName,
+          email:
+            !digitalRiverBillingAddress.isSame &&
+            digitalRiverBillingAddress.isValid
+              ? digitalRiverBillingAddress.email
+              : orderForm.clientProfileData.email,
+          phoneNumber:
+            digitalRiverBillingAddress.phonenumber ||
+            orderForm.clientProfileData.phone,
           address: {
-            line1: `${
-              orderForm.shippingData.address.number
-                ? `${orderForm.shippingData.address.number} `
-                : ''
-            }${orderForm.shippingData.address.street}`,
-            line2: orderForm.shippingData.address.complement,
-            city: orderForm.shippingData.address.city,
-            state: orderForm.shippingData.address.state,
-            postalCode: orderForm.shippingData.address.postalCode,
+            line1:
+              !digitalRiverBillingAddress.isSame &&
+              digitalRiverBillingAddress.isValid
+                ? digitalRiverBillingAddress.addressline1
+                : `${
+                    orderForm.shippingData.address.number
+                      ? `${orderForm.shippingData.address.number} `
+                      : ''
+                  }${orderForm.shippingData.address.street}`,
+            line2:
+              !digitalRiverBillingAddress.isSame &&
+              digitalRiverBillingAddress.isValid
+                ? digitalRiverBillingAddress.addressline2
+                : orderForm.shippingData.address.complement,
+            city:
+              !digitalRiverBillingAddress.isSame &&
+              digitalRiverBillingAddress.isValid
+                ? digitalRiverBillingAddress.city
+                : orderForm.shippingData.address.city,
+            state:
+              !digitalRiverBillingAddress.isSame &&
+              digitalRiverBillingAddress.isValid
+                ? digitalRiverBillingAddress.state
+                : orderForm.shippingData.address.state,
+            postalCode:
+              !digitalRiverBillingAddress.isSame &&
+              digitalRiverBillingAddress.isValid
+                ? digitalRiverBillingAddress.postalcode
+                : orderForm.shippingData.address.postalCode,
             country,
           },
         },
@@ -339,36 +889,30 @@ async function initDigitalRiver(orderForm) {
           renderErrorMessage(paymentErrorTitle, paymentErrorDescription, true)
         },
         onReady(data) {
-          loadStoredCards(checkoutId)
+          mountBillingAddress()
+          loadStoredCards(checkoutId, paymentSessionId)
         },
       }
       const dropin = digitalriver.createDropin(configuration)
-      $('#drop-in-spinner').remove();
-      $('#drop-in').children().remove();
+      $('#drop-in-spinner').remove()
+      $('#drop-in').children().remove()
       dropin.mount('drop-in')
     })
 }
 
 $(document).ready(function () {
-  loadDigitalRiverScript();
+  loadDigitalRiverScript()
   if (~window.location.hash.indexOf('#/payment')) {
     if (
-      $('.payment-group-item.active').attr('id') ===
+      $('.payment-group-item.active').attr('id') !==
       digitalRiverPaymentGroupButtonID
     ) {
-      vtexjs.checkout.getOrderForm().done(function (orderForm) {
-        loadDigitalRiver(orderForm);
-        initDigitalRiver(orderForm)
-      })
-    } else {
       showBuyNowButton()
     }
   }
 })
 
 $(window).on('orderFormUpdated.vtex', function (evt, orderForm) {
-  loadDigitalRiver(orderForm);
-  loadCompliance(orderForm);
   if (
     ~window.location.hash.indexOf('#/payment') &&
     $('.payment-group-item.active').attr('id') ===
@@ -384,6 +928,7 @@ $(window).on('orderFormUpdated.vtex', function (evt, orderForm) {
     ) {
       return
     } else {
+      loadDigitalRiver(orderForm)
       initDigitalRiver(orderForm)
     }
   }
@@ -401,11 +946,11 @@ $(window).on('orderFormUpdated.vtex', function (evt, orderForm) {
 
 ## Digital River APIs
 
-| Field            | Value                                                                                      |
-|------------------|--------------------------------------------------------------------------------------------|
-| **URI**          | /_v/api/digital-river/customers                                                            |
-| **METHOD**       | GET                                                                                        |
-| **API Usage**    | Uses the orderFormId to get a matching Digital River customer. The email in the checkout must exist in Digital River     |
+| Field         | Value                                                                                                                |
+| ------------- | -------------------------------------------------------------------------------------------------------------------- |
+| **URI**       | /\_v/api/digital-river/customers                                                                                     |
+| **METHOD**    | GET                                                                                                                  |
+| **API Usage** | Uses the orderFormId to get a matching Digital River customer. The email in the checkout must exist in Digital River |
 
 _Example Headers:_
 orderFormId: **orderFormId**
@@ -413,17 +958,18 @@ orderFormId: **orderFormId**
 > ⚠️ _There must be an email associated with the orderFormId_
 
 _Example Response:_
+
 ```json
 {
   "id": "540988630336"
 }
 ```
 
-| Field            | Value                                                                                       |
-|------------------|---------------------------------------------------------------------------------------------|
-| **URI**          | /_v/api/digital-river/tax-identifiers                                                       |
-| **METHOD**       | GET                                                                                         |
-| **API Usage**    | Returns all tax ids. This API accepts the same query parameters as the [Digital River API](https://www.digitalriver.com/docs/digital-river-api-reference/#operation/listTaxIdentifiers) |
+| Field         | Value                                                                                                                                                                                   |
+| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **URI**       | /\_v/api/digital-river/tax-identifiers                                                                                                                                                  |
+| **METHOD**    | GET                                                                                                                                                                                     |
+| **API Usage** | Returns all tax ids. This API accepts the same query parameters as the [Digital River API](https://www.digitalriver.com/docs/digital-river-api-reference/#operation/listTaxIdentifiers) |
 
 _Example Headers:_
 orderFormId: **orderFormId**
@@ -431,23 +977,23 @@ orderFormId: **orderFormId**
 > ⚠️ _There must be an email associated with the orderFormId_
 
 _Example Response:_
+
 ```json
 {
-    "id": [
-        "a77cea02-ac3c-45a5-ac7e-e32aff524bc2",
-        "f0c356fe-8779-4775-a6d3-17267816acd0",
-        "7769196c-41c1-4832-a389-399b3be318c4",
-        "39dc5358-0449-4711-af1b-c90e009638eb"
-    ]
+  "id": [
+    "a77cea02-ac3c-45a5-ac7e-e32aff524bc2",
+    "f0c356fe-8779-4775-a6d3-17267816acd0",
+    "7769196c-41c1-4832-a389-399b3be318c4",
+    "39dc5358-0449-4711-af1b-c90e009638eb"
+  ]
 }
 ```
 
-
-| Field            | Value                                                                                       |
-|------------------|---------------------------------------------------------------------------------------------|
-| **URI**          | /_v/api/digital-river/tax-identifiers                                                       |
-| **METHOD**       | POST                                                                                         |
-| **API Usage**    | Returns the created tax id. [Digital River API](https://www.digitalriver.com/docs/digital-river-api-reference/#operation/createTaxIdentifiers) |
+| Field         | Value                                                                                                                                          |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| **URI**       | /\_v/api/digital-river/tax-identifiers                                                                                                         |
+| **METHOD**    | POST                                                                                                                                           |
+| **API Usage** | Returns the created tax id. [Digital River API](https://www.digitalriver.com/docs/digital-river-api-reference/#operation/createTaxIdentifiers) |
 
 _Example Headers:_
 orderFormId: **orderFormId**
@@ -455,62 +1001,63 @@ orderFormId: **orderFormId**
 > ⚠️ _There must be an email associated with the orderFormId_
 
 _Example Request:_
+
 ```json
 {
-    "type": "uk",
-    "value": "GB999999999"
+  "type": "uk",
+  "value": "GB999999999"
 }
 ```
 
 _Example Response:_
+
 ```json
 {
-    "id": "0ea76f4b-372a-41c1-9488-b0a8b13ade58",
-    "state": "verified",
-    "liveMode": false,
-    "type": "uk",
-    "value": "GB999999999",
-    "stateTransitions": {
-        "verified": "2021-10-28T20:41:20Z"
+  "id": "0ea76f4b-372a-41c1-9488-b0a8b13ade58",
+  "state": "verified",
+  "liveMode": false,
+  "type": "uk",
+  "value": "GB999999999",
+  "stateTransitions": {
+    "verified": "2021-10-28T20:41:20Z"
+  },
+  "createdTime": "2021-10-28T20:41:20Z",
+  "updatedTime": "2021-10-28T20:41:20Z",
+  "applicability": [
+    {
+      "country": "IM",
+      "entity": "DR_UK-ENTITY",
+      "customerType": "business"
     },
-    "createdTime": "2021-10-28T20:41:20Z",
-    "updatedTime": "2021-10-28T20:41:20Z",
-    "applicability": [
-        {
-            "country": "IM",
-            "entity": "DR_UK-ENTITY",
-            "customerType": "business"
-        },
-        {
-            "country": "IM",
-            "entity": "DR_IRELAND-ENTITY",
-            "customerType": "business"
-        },
-        {
-            "country": "GB",
-            "entity": "DR_UK-ENTITY",
-            "customerType": "business"
-        },
-        {
-            "country": "GB",
-            "entity": "DR_IRELAND-ENTITY",
-            "customerType": "business"
-        }
-    ]
+    {
+      "country": "IM",
+      "entity": "DR_IRELAND-ENTITY",
+      "customerType": "business"
+    },
+    {
+      "country": "GB",
+      "entity": "DR_UK-ENTITY",
+      "customerType": "business"
+    },
+    {
+      "country": "GB",
+      "entity": "DR_IRELAND-ENTITY",
+      "customerType": "business"
+    }
+  ]
 }
 ```
 
-
-
-| Field            | Value                                                                                       |
-|------------------|---------------------------------------------------------------------------------------------|
-| **URI**          | /_v/api/digital-river/checkout/create                                                   |
-| **METHOD**       | POST                                                                                         |
-| **API Usage**    | Creates Checkout [Digital River API](https://www.digitalriver.com/docs/digital-river-api-reference/#operation/createCheckouts) |
+| Field         | Value                                                                                                                          |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| **URI**       | /\_v/api/digital-river/checkout/create                                                                                         |
+| **METHOD**    | POST                                                                                                                           |
+| **API Usage** | Creates Checkout [Digital River API](https://www.digitalriver.com/docs/digital-river-api-reference/#operation/createCheckouts) |
 
 > ⚠️ _The taxId type must match the country where the product is shipped to. Moreover, the taxId value must be valid. The `customerType` field must be either business or individual. Please See the supported customerType with respect to the nation it is shipped to. [Supported TaxId Types](https://docs.digitalriver.com/digital-river-api/checkouts/creating-checkouts/tax-identifiers#supported-tax-identifiers)_
 
 _Example Request:_
+
 ```json
 {
   "orderFormId": "orderFormId",

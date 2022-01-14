@@ -10,6 +10,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 
 - Fix SonarCloud integration (GitHub Actions)
+- Added billing address form on payment step of checkout
+- Render Digital River compliance component on My Account > Credit Cards
+
+### Fixed
+
+- Automatic creation of Digital River specification fields in VTEX catalog is more resilient
+- Removed dependency on VTEX orderForm in tax calculation flow
+- Add caching for tax calculation requests
 
 ## [2.0.1] - 2021-12-03
 
