@@ -402,6 +402,7 @@ interface Source {
   clientSecret: string
   createdTime: string
   creditCard?: DRCreditCardResponse
+  wireTransfer?: DRWireTransferResponse
   currency: string
   id: string
   paymentSessionId: string
@@ -554,4 +555,14 @@ interface DRTaxIdentifierResponse {
 interface DRCreateTaxIdentifierRequest {
   type: string
   value: string
+}
+
+interface DRWireTransferResponse {
+  accountHolder: string
+  bankName: string
+  city: string
+  country: string
+  referenceId:string
+  accountNumber:string
+  swiftCode: string
 }
