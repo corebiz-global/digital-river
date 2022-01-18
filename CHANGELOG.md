@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Added
+
+- Concatenated orderform fields number and street whenever number is present
+
 ## [2.1.0] - 2022-01-14
 
 ### Added

@@ -273,6 +273,11 @@ export async function digitalRiverCreateCheckout(
 
   const dock = docks.length > 0 && docks[0]
 
+  // Add the number field to street field if number field is present
+  const shipToLine1 = orderFormData.shippingData?.address?.number
+    ? `${orderFormData.shippingData?.address?.number} ${orderFormData.shippingData?.address?.street}`
+    : orderFormData.shippingData?.address?.street || 'Unknown'
+
   const checkoutPayload: DRCheckoutPayload = {
     applicationId,
     currency: orderFormData?.storePreferencesData?.currencyCode ?? 'USD',
@@ -316,7 +321,7 @@ export async function digitalRiverCreateCheckout(
           : '',
       phone: orderFormData.clientProfileData?.phone || '',
       address: {
-        line1: orderFormData.shippingData?.address?.street || 'Unknown',
+        line1: shipToLine1,
         line2: orderFormData.shippingData?.address?.complement || '',
         city: orderFormData.shippingData?.address?.city || 'Unknown',
         state: orderFormData.shippingData?.address?.state || '',
