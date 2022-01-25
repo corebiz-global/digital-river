@@ -1,6 +1,6 @@
 {
   "name": "connector-digital-river",
-  "version": "2.1.2",
+  "version": "2.1.3",
   "scripts": {
     "test": "vtex-test-tools test"
   },
