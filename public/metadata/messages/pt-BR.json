@@ -1,0 +1,11 @@
+{
+  "name": "Digital River",
+  "headline": "Realize vendas internacionais de forma rápida, simples e sem riscos.",
+  "overview": "Esta integração permite adicionar à plataforma de ecommerce da VTEX os serviços de pagamentos, impostos, compliance, fraude e logística de vendas globais da Digital River, simplificando a expansão global para empresas de médio e grande porte.",
+  "features": ["Integração da solução da Digital River na plataforma da VTEX"],
+  "additionalinformation": "Com a solução da Digital River integrada à plataforma da VTEX, os varejistas têm o poder de otimizar a receita, acelerar a implementação e oferecer experiências únicas aos clientes - tudo isso ao mesmo tempo em que reduzem os riscos.",
+  "websiteURL": "https://digitalriver.com",
+  "support": {
+    "url": "https://help-tickets.vtex.com/pt/support?app=vtexus.connector-digital-river"
+  }
+}
