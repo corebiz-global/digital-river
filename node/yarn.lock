@@ -5783,10 +5783,6 @@ verror@1.10.0:
   version "9.135.0"
   resolved "http://vtex.vtexassets.com/_v/public/typings/v1/vtex.styleguide@9.135.0/public/@types/vtex.styleguide#3884521971a1c0f9b3773231b135e1e4abf9020f"
 
-"vtexus.connector-digital-river@http://vtexus.vtexassets.com/_v/public/typings/v1/vtexus.connector-digital-river@0.0.1-beta.1/public/@types/vtexus.connector-digital-river":
-  version "0.0.1-beta.1"
-  resolved "http://vtexus.vtexassets.com/_v/public/typings/v1/vtexus.connector-digital-river@0.0.1-beta.1/public/@types/vtexus.connector-digital-river#21a6783e1440c8328151341845e4e0b4d2a9b953"
-
 w3c-hr-time@^1.0.1:
   version "1.0.1"
   resolved "https://registry.yarnpkg.com/w3c-hr-time/-/w3c-hr-time-1.0.1.tgz#82ac2bff63d950ea9e3189a58a65625fedf19045"
